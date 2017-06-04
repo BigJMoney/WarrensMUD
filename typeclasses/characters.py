@@ -9,6 +9,7 @@ creation commands.
 """
 from evennia import DefaultCharacter
 
+
 class Character(DefaultCharacter):
     """
     The Character defaults to reimplementing some of base Object's hook methods with the
@@ -29,4 +30,21 @@ class Character(DefaultCharacter):
     at_post_puppet - Echoes "PlayerName has entered the game" to the room.
 
     """
-    pass
+    def at_object_creation(self):
+        """
+        Called only at initial creation. This is a rather silly
+        example since ability scores should vary from Character to
+        Character and is usually set during some character
+        generation step instead.
+        """
+        #set persistent attributes
+        self.db.strength = 5
+        self.db.agility = 4
+        self.db.magic = 2
+
+    def get_abilities(self):
+        """
+        Simple access method to return ability
+        scores as a tuple (str,agi,mag)
+        """
+        return self.db.strength, self.db.agility, self.db.magic
