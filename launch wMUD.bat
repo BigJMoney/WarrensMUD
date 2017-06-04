@@ -1,0 +1,1 @@
+cmd /c "activate.bat && evennia start -l"
