@@ -1,1 +1,1 @@
-cmd /c "activate.bat && evennia start -l"
+cmd /k "activate.bat && evennia start -l"
