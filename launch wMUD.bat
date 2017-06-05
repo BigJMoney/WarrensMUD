@@ -1,1 +1,1 @@
-cmd /k "activate.bat && evennia start -l"
+cmd /k "..\pyenv\scripts\activate.bat && evennia start -l"
