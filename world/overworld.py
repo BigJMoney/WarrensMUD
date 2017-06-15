@@ -6,12 +6,16 @@ navigation.
 
 Usage:
 
-    ???
+    @py from world import overworld; overworld.create_overworld()
+
+    @py from world import overworld; overworld.destroy_overworld()
+
+    @py from world import overworld; self.msg(overworld.Sector.objects.get(db_key='2').stop())
 
 
 Implementation details:
 
-    An OverworldScript handles the creation of the world by creating a node map
+    An Overworld handles the creation of the world by creating a node map
     of sectors, and then fills in each sector with a map (courtesy of the
     evennia wilderness contrib from titeuf87).
 
@@ -31,44 +35,36 @@ import wilderness
 
 def create_overworld():
     """
-    Just a test function to get the ball rolling
+    Test function to get the ball rolling
 
     """
-    global overworld
-    mapprovider = SectorMapProvider("[][][][]")
-    overworld = create_script(OverworldScript, key="overworld")
-    overworld.db.mapprovider = mapprovider
+    create_script(Overworld, key="overworld")
 
-class OverworldScript(wilderness.WildernessScript):
+def destroy_overworld():
+    for i in range(1, 101):
+        print(i)
+        try:
+            script = Sector.objects.get(db_key=str(i))
+            script.stop()
+        except Sector.DoesNotExist:
+            pass
+
+        # Sector.objects.get(db_key='2').stop()
+
+class Overworld(wilderness.WildernessScript):
     """
     Creates a world map (nodes of sectors) upon creation, but can also create
     a new one during a world storm.
 
-    A TODO for me that I just realized is when I make my create_world function
-    I need the OverworldScript to be able to handle working with more than one
-    mapprovider
-
-    These methods will also need fixing for this:
-    is_valid_coordinates()
-    _create_room()
-    location_name()
-    set_active_coordinates()
-
-    A trick I want to try is to wrap these methods in my extended methods which
-    simply figure out the correct mapprovider and set self.mapprovider to it
-
-    ...OR...
-    I should create multiple WildernessScript instances
     """
     def at_script_creation(self):
         """
-
-
         Associates each type of map glyph with properties (name, desc, etc)
-        This data will likely be store elsewhere eventually to keep the code clean
+        This data will likely be store elsewhere eventually to keep the code
+        clean
 
-        Also, I don't know if this is the correct way to set properties on
-        tclasses; I'll need to research.
+        This function creates a new world but it doesn't delete the previous
+        one which would still be present in the db with all its sectors.
 
             Args:
                 map_config: A dict pairing overworld levels with the size (in
@@ -79,8 +75,8 @@ class OverworldScript(wilderness.WildernessScript):
         self.db.glyph_legend = {
             "f": {
                 "name":"forest",
-                "desc":"I'm too lazy to include a sample forest description that"
-                       "will just be replaced with the real thing later"
+                "desc":"I'm too lazy to include a sample forest description "
+                       "that will just be replaced with the real thing later"
             },
             "w": {
                 "name":"wasteland",
@@ -90,15 +86,27 @@ class OverworldScript(wilderness.WildernessScript):
         # The number of sectors per world level
         # TODO: Implement retrieval from settings.py
         self.db.map_config = { 1:100 }
-        logger.log_info("OverworldInit: PLACEHOLDER: Retrieved world makeup"
+        # Sector counter to create unique keys from
+        self.db.numsectors = 0
+        logger.log_info("OverworldInit: PLACEHOLDER: Retrieved world makeup "
                         "from settings.py")
         # A map of world node coordinates to sector objects
         self.db.worldmap = {}
-        for level in self.map_config:
-            self.worldmap[level] = {}
+        for level in self.db.map_config:
+            self.db.worldmap[level] = {}
 
         # Make a world!
-        self.world_storm(self.map_config)
+        self.world_storm(self.db.map_config)
+
+    # @property
+    # def numsectors(self):
+    #     """
+    #     Shortcut property to the map provider.
+    #
+    #     Returns:
+    #         MapProvider: the mapprovider used with this wilderness
+    #     """
+    #     return self.db.numsectors
 
     def create_mapnodes(self, size):
         """
@@ -121,8 +129,9 @@ class OverworldScript(wilderness.WildernessScript):
         # TODO: Take the list, figure out the neighbors and what hex side they're on and associate all neighbor-sides (tuple) for each coordinate on the list
         logger.log_info("WorldStorm: PLACEHOLDER: Determined node neighbors")
 
+        placeholder = {}
         for num in range(size):
-            placeholder['ph_coord'] = 'ph_neighbor'
+            placeholder['ph_coord' + str(num)] = (1,2,3)
         return placeholder
         pass
 
@@ -141,11 +150,13 @@ class OverworldScript(wilderness.WildernessScript):
         # TODO: Algorithm to create a sector
         logger.log_info("WorldStorm: PLACEHOLDER: Generated a sector")
 
+        # Create a Sector with a unique key; not sure if needed though
+        script = create_script(Sector, key=str(self.db.numsectors+1))
+        # Increase our unique keyname counter
+        self.db.numsectors = self.db.numsectors + 1
         mapprovider = SectorMapProvider(secmap_str)
-        # Create the wilderness script for this sector
-        # TODO: I need to generate unique names for my wilderness scripts, or alter the module code to allow similar names
-        wilderness.create_wilderness("placeholder", mapprovider)
-        logger.log_info("WorldStorm: PLACEHOLDER: Sector wilderness created")
+        script.db.mapprovider = mapprovider
+        logger.log_info("WorldStorm: PLACEHOLDER: Sector created")
         return mapprovider
 
     def caveinate_sectors(self, secmap, neighbormap):
@@ -165,6 +176,7 @@ class OverworldScript(wilderness.WildernessScript):
                 logger.log_info("WorldStorm: PLACEHOLDER: Set neighbors for "
                                 "sector {}".format(str(coord)))
                 # 'Move' the sector to where it belongs on the node map
+                sec.neighbors = {}
                 sec.neighbors[side] = neighbor_coord
             # TODO: Code to 'decaveinate' this sctor
             logger.log_info("WorldStorm: PLACEHOLDER: Decaveinated sector")
@@ -189,51 +201,57 @@ class OverworldScript(wilderness.WildernessScript):
         # How many seconds a world storm lasts
         locktime = 300
 
-        for level in list(self.mapconfig.keys()):
-            # Used to combine any existing sectors with newly creted ones
+        for level in list(self.db.map_config.keys()):
+            # Combines existing sectors with newly created ones
             secs = []
             # Create node map of coords:neighbors
-            neighbormap.update(self.create_mapnodes(self.map_config[level]))
+            neighbormap.update(self.create_mapnodes(self.db.map_config[level]))
             logger.log_info("WorldStorm: PLACEHOLDER: Node map finished")
             logger.log_info("WorldStorm: Map of neighbors created")
-            if self.map_config[level] < 1:
-                logger.log_error("WorldStorm: ERROR: OverWorldScript.map_config "
+            if self.db.map_config[level] < 1:
+                logger.log_error("WorldStorm: ERROR: Overworld.map_config "
                                 "is less than 1. This is not the proper way to "
                                 "erase a level. Fix in settings.py. Aborting "
                                 "world storm.")
                 return False
             # Code if there is an existing overworld
-            if len(self.worldmap[level]) > 0:
-                if len(self.worldmap[level]) > len(neighbormap):
-                    logger.log_error("WorldStorm: ERROR: OverWorldScript.map_config "
+            if len(self.db.worldmap[level]) > 0:
+                if len(self.db.worldmap[level]) > len(neighbormap):
+                    logger.log_error("WorldStorm: ERROR: Overworld.map_config "
                                     "is less than the existing world size. Fix "
                                     "in settings.py. Aborting world storm.")
                     return False
                 # TODO: Broadcast the storm and lock down inter-sector travel 5 mins
-                logger.log_info("WorldStorm: PLACEHOLDER: Broadcast storm and locked "
-                                "intersector travel for "
+                logger.log_info("WorldStorm: PLACEHOLDER: Broadcast storm and "
+                                "locked intersector travel for "
                                 "{} minutes...".format(locktime))
                 # Make a list of our existing sectors and shuffle them
-                secs_old = list(self.worldmap[level].values())
+                secs_old = list(self.db.worldmap[level].values())
                 random.shuffle(secs_old)
                 # And add them to the big list of sectors
                 secs.append(secs_old)
-            diff = len(neighbormap) - len(self.worldmap[level])
+            diff = len(neighbormap) - len(self.db.worldmap[level])
             # Code if the new scrambled will be larger than previous (or is new)
             if diff > 0:
                 # Maybe one day I want to run a function here that picks biomes
-                # for the new neighbormap and assigns them as a biomemap. Then I can
-                # pass biome to create_sector() in the comprehension below.
+                # for the new neighbormap and assigns them as a biomemap. Then I
+                # can pass biome to create_sector() in the comprehension below.
 
                 secs_new = [self.create_sector() for s in range(diff)]
                 logger.log_info("WorldStorm: New sectors created")
                 secs.append(secs_new)
             # Create final world map of sectors
-            self.worldmap[level] = {coord:sec for coord,sec in \
+            self.db.worldmap[level] = {coord:sec for coord,sec in \
                                     zip(neighbormap,secs)}
             logger.log_info("WorldStorm: World maps created")
             # caveinate this level
-            self.caveinate_sectors(self.worldmap[level], neighbormap)
+            self.caveinate_sectors(self.db.worldmap[level], neighbormap)
+
+class Sector(wilderness.WildernessScript):
+    """
+    Just a name change wrapper for now, but may be used in the future.
+    """
+    pass
 
 class SectorMapProvider(wilderness.WildernessMapProvider):
     """
@@ -243,6 +261,10 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
     """
 
     # Associates this hex's sides (ints) with a ref to the neighbor sector
+        # Shit, I think this is invalid in Evennia... non db objects cannot
+        # store db objects and expect them to be saved
+        # I might need to save this as an attribute on the Sector itself
+        # Or I could have this associated with the Sector key instead of ref
     neighbors = {}
 
     def __init__(self, map_str):
@@ -258,7 +280,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         Needs to check for cave walls and movement into adjacent sectors
 
         Args:
-            overworld: Ref to the OverworldScript (caller)
+            overworld: Ref to the Overworld (caller)
             coordinates: The coordinates to validate
 
         Returns:
@@ -299,7 +321,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         logger.log_info("WorldStorm: PLACEHOLDER: Loc minimap retrieved")
         pass
 
-class Loc(WildernessRoom):
+class Loc(wilderness.WildernessRoom):
     """
     Where any special loc code goes
     """
@@ -312,7 +334,8 @@ class RecruitMapper(Script):
     A recruit's personal mapper that records a map of each sector they
     visit and the world map of all the sectors
 
-    Either a catalogue of a recruit's sectormaps, or an object for each map they contain; not sure yet
+    Either a catalogue of a recruit's sectormaps, or an object for each map they
+    contain; not sure yet
 
     I know that an actual sector map will be made of at least an id and a string
     It might also be made of a dict containing map features and their coords

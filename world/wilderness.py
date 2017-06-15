@@ -43,66 +43,6 @@ Customisation:
     still needs to be added: it can be a command or an exit, depending on your
     needs.
 
-Customisation example:
-
-    To give an example of how to customize, we will create a very simple (and
-    small) wilderness map that is shaped like a pyramid. The map will be
-    provided as a string: a "." symbol is a location we can walk on.
-
-    Let's create a file world/pyramid.py:
-
-    ```python
-    map_str = \"\"\"
-         .
-        ...
-       .....
-      .......
-    \"\"\"
-
-    from evennia.contrib import wilderness
-
-    class PyramidMapProvider(wilderness.WildernessMapProvider):
-
-        def is_valid_coordinates(self, wilderness, coordinates):
-            "Validates if these coordinates are inside the map"
-            x, y = coordinates
-            try:
-                lines = map_str.split("\n")
-                # The reverse is needed because otherwise the pyramid will be
-                # upside down
-                lines.reverse()
-                line = lines[y]
-                column = line[x]
-                return column == "."
-            except IndexError:
-                return False
-
-        def get_location_name(self, coordinates):
-            "Set the location name"
-            x, y = coordinates
-            if y == 3:
-                return "Atop the pyramid."
-            else:
-                return "Inside a pyramid."
-
-        def at_prepare_room(self, coordinates, caller, room):
-            "Any other changes done to the room before showing it"
-            x, y = coordinates
-            desc = "This is a room in the pyramid.
-            if y == 3 :
-                desc = "You can see far and wide from the top of the pyramid."
-            room.db.desc = desc
-    ```
-
-    Now we can use our new pyramid-shaped wilderness map. From inside Evennia we
-    create a new wilderness (with the name "default") but using our new map provider:
-
-    ```
-    @py from world import pyramid as p; p.wilderness.create_wilderness(mapprovider=p.PyramidMapProvider())
-
-    @py from evennia.contrib import wilderness; wilderness.enter_wilderness(me, coordinates=(4, 1))
-
-    ```
 Implementation details:
 
     When a character moves into the wilderness, they get their own room. If
@@ -119,29 +59,6 @@ Implementation details:
 from evennia import DefaultRoom, DefaultExit, DefaultScript
 from evennia import create_object, create_script
 from evennia.utils import inherits_from
-
-
-def create_wilderness(name="default", mapprovider=None):
-    """
-    Creates a new wilderness map. Does nothing if a wilderness map already
-    exists with the same name.
-
-    Args:
-        name (str, optional): the name to use for that wilderness map
-        mapprovider (WildernessMap instance, optional): an instance of a
-            WildernessMap class (or subclass) that will be used to provide the
-            layout of this wilderness map. If none is provided, the default
-            infinite grid map will be used.
-    """
-    # TODO: I need to override the behavior that doesn't allow me to have multiple scripts with the same name
-    if WildernessScript.objects.filter(db_key=name).exists():
-        # Don't create two wildernesses with the same name
-        return
-
-    if not mapprovider:
-        mapprovider = WildernessMapProvider()
-    script = create_script(WildernessScript, key=name)
-    script.db.mapprovider = mapprovider
 
 
 def enter_wilderness(obj, coordinates=(0, 0), name="default"):
