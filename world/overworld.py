@@ -7,7 +7,7 @@ navigation.
 Usage:
 
     @py from world import overworld; overworld.create_overworld()
-
+    @py from world import overworld; overworld.enter_sector(me)
     @py from world import overworld; overworld.destroy_overworld()
 
 Implementation details:
@@ -25,6 +25,7 @@ Implementation details:
 """
 import random
 
+import world.sector_glyphs
 from evennia import logger
 from typeclasses.scripts import Script
 from evennia import create_script
@@ -33,9 +34,19 @@ import wilderness
 def create_overworld():
     """
     Test function to get the ball rolling
-
     """
     create_script(Overworld, key="overworld")
+
+def enter_sector(obj, coords=(0, 0), name='1'):
+    """
+    Test function to get the player into a sector
+    """
+    sec = Sector.objects.get(db_key=name)
+    if sec.is_valid_coordinates(coords):
+        sec.move_obj(obj, coords)
+        return True
+    else:
+        return False
 
 def destroy_overworld():
     for i in range(1, 101):
@@ -68,18 +79,7 @@ class Overworld(wilderness.WildernessScript):
                 sectors) to make them
         """
         # The legend for loc names and descriptions, for each map glyph
-        # TODO: Find a good way to soft-code text strings like this
-        self.db.glyph_legend = {
-            "f": {
-                "name":"forest",
-                "desc":"I'm too lazy to include a sample forest description "
-                       "that will just be replaced with the real thing later"
-            },
-            "w": {
-                "name":"wasteland",
-                "desc":"Yep, same thing here except this ain't multi-line"
-            }
-        }
+        self.db.glyph_legend = world.sector_glyphs.glyph_legend
         # The number of sectors per world level
         # TODO: Implement retrieval from settings.py
         self.db.map_config = { 1:100 }
@@ -267,10 +267,10 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
     """
 
     # Associates this hex's sides (ints) with a ref to the neighbor sector
-        # Shit, I think this is invalid in Evennia... non db objects cannot
-        # store db objects and expect them to be saved
-        # I might need to save this as an attribute on the Sector itself
-        # Or I could have this associated with the Sector key instead of ref
+    # Shit, I think this is invalid in Evennia... non db objects cannot
+    # store db objects and expect them to be saved
+    # I might need to save this as an attribute on the Sector itself
+    # Or I could have this associated with the Sector key instead of ref
     neighbors = {}
 
     def __init__(self, map_str):
@@ -279,52 +279,133 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
             map_str: This sector's map string
         """
         self.map_str = map_str
+        # Legend of glyphs (dict)
 
-    def is_valid_coordinates(self, overworld, coordinates):
+    def glyph_coordinates(self, coords):
+        """
+        Translates sector (game) coordinates into glyph (map_str) coordinates
+
+        This is needed because the string places 0,0 in the bottom left, while
+        the game places 0,0 in the center of the sector hex
+
+            Args:
+                coords: The game coordinates to translate
+
+            Returns:
+                Tuple of coordinates that self.map_str can use
+        """
+        # The translation
+        coords_offset = (36, 32)
+
+        # Translate map coords into glyph coords
+        gcoords = tuple(a + b for a, b in zip(coords, coords_offset))
+        return gcoords
+
+    def find_glyph(self, gcoords):
+        """
+        Find the character in self.map_str, given its coordinates
+
+        Args:
+            gcoords: Coordinates (in map_str/glyph translation)
+        Returns:
+            The glyph string
+        """
+        # Not saved on the SectorMapProvider because it needs to be loaded fresh
+        legend = world.sector_glyphs.glyph_legend
+        gx, gy = gcoords
+        rows = self.map_str.split("\n")
+
+        # Coordinates begin at the bottom row, not the top
+        rows.reverse()
+        # Y coordinate must exist on the map
+        try:
+            row = rows[gy]
+        except IndexError:
+            glyph = 'invalid'
+            return glyph
+        # X coordinate must exist on the map
+        try:
+            glyph = row[gx]
+        except IndexError:
+            glyph = 'invalid'
+            return glyph
+        # If the player runs into a glyph not in the legend, make it an error
+        if glyph not in legend:
+            glyph = '!'
+        return glyph
+
+    def is_valid_coordinates(self, overworld, coords):
         """
         Uses the map string to check if the coordinates are valid to move to
         Needs to check for cave walls and movement into adjacent sectors
 
         Args:
             overworld: Ref to the Overworld (caller)
-            coordinates: The coordinates to validate
+            coords: The coordinates to validate
 
         Returns:
             Not sure yet :) Possibly true, false or a ref to a neighbor
         """
-
-        # TODO: Check for cave walls
-
-        # TODO: Use neighbors to handle cross-sector travel
+        legend = world.sector_glyphs.glyph_legend
+        # The characters that define impassable spaces (out of bounds)
+        oob_glyphs = [gkey for gkey in legend if legend[gkey]["pass"] == False]
+        # oob_glyphs = []
+        # # Find and set our impassable glyphs
+        # legend = world.sector_glyphs.glyph_legend
+        # for gkey in legend:
+        #     if legend[gkey]["pass"] == False:
+        #         oob_glyphs.append(gkey)
+        # Convert sector coords to glyph coords
+        gcoords = self.glyph_coordinates(coords)
+        # Ensure gcoords are on the map (negative index exploit)
+        if gcoords < (0, 0) or tuple(reversed(gcoords)) < (0, 0):
+            logger.log_err('Navigation: ERROR: invalid coordinates {} given to '
+                           'SectorMapProvider'.format(coords))
+            return False
+        glyph = self.find_glyph(gcoords)
+        # Check if the glyph was on the map
+        if glyph == 'invalid':
+            logger.log_err('Navigation: ERROR: invalid coordinates {} given to '
+                           'SectorMapProvider'.format(coords))
+            return False
+        return glyph not in oob_glyphs
+        # TODO: Detect edge for cross-sector travel
         # Remember to block cross-sector travel during a world-storm
-        logger.log_info("WorldStorm: PLACEHOLDER: Neighbor found and cross "
-                        "sector travel initiated")
         pass
 
-    def get_location_name(self, coordinates):
+    def get_location_name(self, coords):
         """
         Used if a builder attempts to run commands on this room, I believe
 
         Args:
-            coordinates: coordinates of the loc
+            coordss: coordinates of the loc
         """
-        # I'm honestly not sure what this is supposed to return
-        # TODO: Test and fix this
-        return "biffle-diffle"
+        legend = world.sector_glyphs.glyph_legend
+        gcoords = self.glyph_coordinates(coords)
+        glyph = self.find_glyph(gcoords)
+        locprops = legend[glyph]
+        return '{} [{}{}{}]'.format(locprops["name"], locprops["color"],
+                                           locprops["scan"], '|n')
 
-    def at_prepare_room(self, coords, caller, room):
+    def at_prepare_room(self, coords, caller, loc):
         """
         Set loc attributes and minimap
 
         Args:
             coords: Loc coordinates
             caller: ???
-            room: ???
+            loc: Loc being moved into
         """
-        # TODO: use self.map_str to determine room desc and minimap strings
+        legend = world.sector_glyphs.glyph_legend
+        gcoords = self.glyph_coordinates(coords)
+        glyph = self.find_glyph(gcoords)
+        locprops = legend[glyph]
+        loc.db.name = locprops["name"]
+        loc.db.desc = '{}{}{}'.format(locprops["color"], locprops["desc"], '|n')
+        logger.log_info("Navigation: Loc desc retrieved")
+        # TODO: use self.map_str to determine minimap string
         # Use EvTable for minimap
-        logger.log_info("WorldStorm: PLACEHOLDER: Loc desc retrieved")
-        logger.log_info("WorldStorm: PLACEHOLDER: Loc minimap retrieved")
+        logger.log_info("Navigation: PLACEHOLDER: Loc minimap retrieved")
         pass
 
 class Loc(wilderness.WildernessRoom):

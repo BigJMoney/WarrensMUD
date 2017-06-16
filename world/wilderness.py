@@ -529,7 +529,8 @@ class WildernessRoom(DefaultRoom):
         else:
             name = self.location_name
 
-        name += " {0}".format(self.coordinates)
+        # Stamping out the coordinates from the name
+        # name += " {0}".format(self.coordinates)
         return name
 
 
