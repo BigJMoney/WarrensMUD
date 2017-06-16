@@ -10,9 +10,6 @@ Usage:
 
     @py from world import overworld; overworld.destroy_overworld()
 
-    @py from world import overworld; self.msg(overworld.Sector.objects.get(db_key='2').stop())
-
-
 Implementation details:
 
     An Overworld handles the creation of the world by creating a node map
@@ -96,7 +93,7 @@ class Overworld(wilderness.WildernessScript):
             self.db.worldmap[level] = {}
 
         # Make a world!
-        self.world_storm(self.db.map_config)
+        self.world_storm(dict(self.db.map_config))
 
     # @property
     # def numsectors(self):
@@ -145,9 +142,12 @@ class Overworld(wilderness.WildernessScript):
              a SectorMapProvider instance
         """
         # Our sector map
-        secmap_str = '[][][][]'
+        secmap_str = ''
 
         # TODO: Algorithm to create a sector
+        # Currently I'm pulling from a hand-made file
+        str_file = open('.\\world\\sector_proto.txt')
+        secmap_str = str_file.read()
         logger.log_info("WorldStorm: PLACEHOLDER: Generated a sector")
 
         # Create a Sector with a unique key; not sure if needed though
@@ -173,15 +173,17 @@ class Overworld(wilderness.WildernessScript):
             for side in neighbormap[coord]:
                 # TODO: Use the coord and the side to determine neighbor_coord
                 neighbor_coord = 'placeholder'
-                logger.log_info("WorldStorm: PLACEHOLDER: Set neighbors for "
-                                "sector {}".format(str(coord)))
                 # 'Move' the sector to where it belongs on the node map
                 sec.neighbors = {}
                 sec.neighbors[side] = neighbor_coord
+            logger.log_info("WorldStorm: PLACEHOLDER: Set neighbors for "
+                            "sector {}".format(str(coord)))
             # TODO: Code to 'decaveinate' this sctor
-            logger.log_info("WorldStorm: PLACEHOLDER: Decaveinated sector")
+            logger.log_info("WorldStorm: PLACEHOLDER: Decaveinated sector "
+                            "sector {}".format(str(coord)))
             # TODO: Code to 'caveinate' this sector according to its new neighbors
-            logger.log_info("WorldStorm: PLACEHOLDER: Caveinated sector")
+            logger.log_info("WorldStorm: PLACEHOLDER: Caveinated sector "
+                            "sector {}".format(str(coord)))
 
     def world_storm(self, map_config):
         """
@@ -229,7 +231,7 @@ class Overworld(wilderness.WildernessScript):
                 secs_old = list(self.db.worldmap[level].values())
                 random.shuffle(secs_old)
                 # And add them to the big list of sectors
-                secs.append(secs_old)
+                secs = secs + secs_old
             diff = len(neighbormap) - len(self.db.worldmap[level])
             # Code if the new scrambled will be larger than previous (or is new)
             if diff > 0:
@@ -239,13 +241,17 @@ class Overworld(wilderness.WildernessScript):
 
                 secs_new = [self.create_sector() for s in range(diff)]
                 logger.log_info("WorldStorm: New sectors created")
-                secs.append(secs_new)
+                secs = secs + secs_new
             # Create final world map of sectors
-            self.db.worldmap[level] = {coord:sec for coord,sec in \
-                                    zip(neighbormap,secs)}
+            # self.db.worldmap[level] = {coord:sec for coord,sec in \
+            #                        zip(neighbormap,secs)}
+            combined_map = list(zip(list(neighbormap.keys()), secs))
+            for coord, sec in combined_map:
+                self.db.worldmap[level][coord] = sec
+
             logger.log_info("WorldStorm: World maps created")
             # caveinate this level
-            self.caveinate_sectors(self.db.worldmap[level], neighbormap)
+            self.caveinate_sectors(dict(self.db.worldmap[level]), neighbormap)
 
 class Sector(wilderness.WildernessScript):
     """
