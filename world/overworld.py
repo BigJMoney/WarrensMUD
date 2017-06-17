@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 """
 Overworld
 
@@ -24,18 +25,19 @@ Implementation details:
 
 """
 import random
-
 import world.sector_glyphs
-from evennia import logger
+from evennia import logger, create_script
+from evennia.utils import evtable
 from typeclasses.scripts import Script
-from evennia import create_script
 import wilderness
+
 
 def create_overworld():
     """
     Test function to get the ball rolling
     """
     create_script(Overworld, key="overworld")
+
 
 def enter_sector(obj, coords=(0, 0), name='1'):
     """
@@ -44,9 +46,11 @@ def enter_sector(obj, coords=(0, 0), name='1'):
     sec = Sector.objects.get(db_key=name)
     if sec.is_valid_coordinates(coords):
         sec.move_obj(obj, coords)
+        obj.execute_cmd('look')
         return True
     else:
         return False
+
 
 def destroy_overworld():
     for i in range(1, 101):
@@ -57,7 +61,6 @@ def destroy_overworld():
         except Sector.DoesNotExist:
             pass
 
-        # Sector.objects.get(db_key='2').stop()
 
 class Overworld(wilderness.WildernessScript):
     """
@@ -272,6 +275,8 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
     # I might need to save this as an attribute on the Sector itself
     # Or I could have this associated with the Sector key instead of ref
     neighbors = {}
+    # TODO: Put this in a hud.py somewhere
+
 
     def __init__(self, map_str):
         """
@@ -301,16 +306,20 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         gcoords = tuple(a + b for a, b in zip(coords, coords_offset))
         return gcoords
 
-    def find_glyph(self, gcoords):
+    def find_glyph(self, gcoords, scan=False):
         """
         Find the character in self.map_str, given its coordinates
 
+        Can optionally find the scan glyph, which is used for the minimap
+
         Args:
-            gcoords: Coordinates (in map_str/glyph translation)
+            gcoords (tuple): Coordinates (in map_str/glyph translation)
+            scan (boolean): Whether to return a "scan" glyph
         Returns:
             The glyph string
         """
         # Not saved on the SectorMapProvider because it needs to be loaded fresh
+        # TODO: set self.legend in the script's start method so I don't have to call it everywhere!
         legend = world.sector_glyphs.glyph_legend
         gx, gy = gcoords
         rows = self.map_str.split("\n")
@@ -332,6 +341,9 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         # If the player runs into a glyph not in the legend, make it an error
         if glyph not in legend:
             glyph = '!'
+
+        if scan:
+            return legend[glyph]["scan"]
         return glyph
 
     def is_valid_coordinates(self, overworld, coords):
@@ -348,7 +360,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         """
         legend = world.sector_glyphs.glyph_legend
         # The characters that define impassable spaces (out of bounds)
-        oob_glyphs = [gkey for gkey in legend if legend[gkey]["pass"] == False]
+        oob_glyphs = [gkey for gkey in legend if not legend[gkey]["pass"]]
         # oob_glyphs = []
         # # Find and set our impassable glyphs
         # legend = world.sector_glyphs.glyph_legend
@@ -384,8 +396,8 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         gcoords = self.glyph_coordinates(coords)
         glyph = self.find_glyph(gcoords)
         locprops = legend[glyph]
-        return '{} [{}{}{}]'.format(locprops["name"], locprops["color"],
-                                           locprops["scan"], '|n')
+        # Leaving this to change color easily
+        return '{}'.format(locprops["name"])
 
     def at_prepare_room(self, coords, caller, loc):
         """
@@ -401,18 +413,54 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         glyph = self.find_glyph(gcoords)
         locprops = legend[glyph]
         loc.db.name = locprops["name"]
-        loc.db.desc = '{}{}{}'.format(locprops["color"], locprops["desc"], '|n')
+        loc.db.desc = '{}{}{}'.format('|045', locprops["desc"], '|n')
+
+        # Draw the hud
+        # TODO: Account for adjacent sectors
+        # Future Release: Account for different sized scans
+        scan_grid = ((-1, 1),  (0, 1),  (1, 1),
+                     (-1, 0),  (0, 0),  (1, 0),
+                     (-1, -1), (0, -1), (1, -1))
+        def scan_glyphs(self, gc, sgrid):
+            # Adds sgrid offsets to gcs (coordinates) and returns minimap glyphs
+            # including colorcodes
+            elements = []
+            for offset in sgrid:
+                ngc = tuple(x + y for x, y in zip(gc, offset))
+                # Get the offset gluph's color
+                e = legend[self.find_glyph(ngc)]["color"]
+                # Get it's minimap glyph
+                e += self.find_glyph(ngc, scan=True)
+                # Close the color code
+                e += '|n'
+                elements.append(e)
+            return elements
+        scan_string = '╓───scans───╖\n'
+        scan_string += '║{} {} {}║\n'.format(*(scan_glyphs(self, gcoords, scan_grid[0:3])))
+        scan_string += '║{} {} {}║\n'.format(*(scan_glyphs(self, gcoords, scan_grid[3:6])))
+        scan_string += '║{} {} {}║\n'.format(*(scan_glyphs(self, gcoords, scan_grid[6:9])))
+        scan_string += '╙───scans───╜'
+
+        # Draw the Compass
+        def show_coords(cs):
+            x, y = cs
+            xpad = ' '
+            if 0 <= x < 10: xpad = '  '
+            ypad = ' '
+            if 0 <= y < 10: ypad = '  '
+            cstring = xpad + str(x) + ',' + str(y) + ypad
+            return cstring
+        comp_string = 'Compass\n'
+        comp_string += '~~~~~~~\n'
+        comp_string += '[{}]'.format(show_coords(coords))
+
+        loc.db.hud = evtable.EvTable(scan_string,comp_string,
+                                     border=None, align="c", width=32)
         logger.log_info("Navigation: Loc desc retrieved")
         # TODO: use self.map_str to determine minimap string
         # Use EvTable for minimap
         logger.log_info("Navigation: PLACEHOLDER: Loc minimap retrieved")
         pass
-
-class Loc(wilderness.WildernessRoom):
-    """
-    Where any special loc code goes
-    """
-    pass
 
 # Here is the recruit mapping code
 

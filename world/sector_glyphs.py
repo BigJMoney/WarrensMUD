@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 """
 Sector Glyphs
 
@@ -15,86 +16,93 @@ glyph_legend = {
     "f": {
         "name":"Forest",
         "color":"|020",
-        "desc":"This is a forest",
-        "scan":"ff",
+        "desc":"Can't see very far in the forest",
+        "scan":"FFF",
         "pass":True
     },
     "w": {
         "name":"Wasteland",
         "color":"|111",
-        "desc":"This is a wasteland",
-        "scan":"ww",
+        "desc":"A wasteland of rubble and debris",
+        "scan":"w.w",
         "pass":True
     },
     "g": {
         "name":"Grassland",
         "color":"|230", #or 240
-        "desc":"This is some grassland",
-        "scan":"gg",
+        "desc":"Grass sways in the breeze for miles",
+        "scan":'"""',
         "pass":True
     },
     "h": {
         "name":"Hills",
         "color":"|321", #or 221
-        "desc":"Here are yon hills",
-        "scan":"hh",
+        "desc":"Hiking through the hills is a tiring effort",
+        "scan":"hhh",
         "pass":True
     },
     "p": {
         "name":"Plains",
         "color":"|531",
         "desc":"Plains stretch as far as...well you get the point",
-        "scan":"pp",
+        "scan":"_._",
         "pass":True
     },
     "I": {
         "name":"Road",
         "color":"|555",
         "desc":"A crumbling road snakes through the wilderness",
-        "scan":"II",
+        "scan":".I.",
         "pass":True
     },
     "M": {
         "name":"Mountain",
         "color":"|333",
-        "desc":"Upon a mountain range",
-        "scan":"MM",
+        "desc":"Upon a mountain range, surveying the land around you",
+        "scan":"/M\\",
         "pass":True
     },
     "m": {
         "name":"Marsh",
         "color":"|415|[011",
-        "desc":"You slog through some marshland",
-        "scan":"mm",
+        "desc":"You slog through some stinking marshland",
+        "scan":'"""',
         "pass":True
     },
     "C": {
         "name":"Cavewall",
         "color":"|211",
         "desc":"Uncrossable cave wall",
-        "scan":"CC",
+        "scan":"[C]",
         "pass":False
     },
     "r": {
-        "name":"Water",
+        "name":"River",
         "color":"|115",
         "desc":"How did you get here, are you Jesus?",
-        "scan":"rr",
-        "pass":True
+        "scan":"~~~",
+        "pass":False
+    },
+    "s": {
+        "name": "Shallows",
+        "color": "|235",
+        "desc": "A place where water is shallow enough to ford",
+        "scan": "~s~",
+        "pass": True
     },
     ".": {
         "name":"out_of_bounds",
         "color":"|000",
         "desc":"sectorbounds_error!",
-        "scan":"..",
+        "scan":"...",
         "pass":False
     },
-# A catch-all replacement for unexpected glyph errors in the map
+    # A catch-all replacement for unexpected glyph errors in the map
     "!": {
         "name":"unknown_glyph",
         "color":"|500",
         "desc":"glyphlegend_error!",
-        "scan":"!!",
+        "scan":"!!!",
         "pass":True
     }
 }

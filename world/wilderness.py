@@ -55,7 +55,7 @@ Implementation details:
     overhead cost of creating new rooms again in the future.
 
 """
-
+import typeclasses.rooms
 from evennia import DefaultRoom, DefaultExit, DefaultScript
 from evennia import create_object, create_script
 from evennia.utils import inherits_from
@@ -246,7 +246,7 @@ class WildernessScript(DefaultScript):
             self._destroy_room(old_room)
         except KeyError:
             # There is no room yet at new_location
-            if (old_room and not inherits_from(old_room, WildernessRoom)) or \
+            if (old_room and not inherits_from(old_room, Loc)) or \
                (not old_room):
                 # Obj doesn't originally come from a wilderness room.
                 # We'll create a new one then.
@@ -336,7 +336,7 @@ class WildernessScript(DefaultScript):
         Args:
             room (WildernessRoom): the room to put in storage
         """
-        if not room or not inherits_from(room, WildernessRoom):
+        if not room or not inherits_from(room, Loc):
             return
 
         for item in room.contents:
@@ -375,7 +375,7 @@ class WildernessScript(DefaultScript):
         self._destroy_room(room)
 
 
-class WildernessRoom(DefaultRoom):
+class WildernessRoom(typeclasses.rooms.Room):
     """
     This is a single room inside the wilderness. This room provides a "view"
     into the wilderness map. When a player moves around, instead of going to
@@ -534,6 +534,47 @@ class WildernessRoom(DefaultRoom):
         return name
 
 
+class Loc(WildernessRoom):
+    """
+    A WarrensMUD override to extend functionality
+
+    """
+
+    # def return_appearance(self, looker):
+    #     """
+    #     Special Loc description format
+    #
+    #     Args:
+    #         looker (Object): Object doing the looking.
+    #     """
+    #     if not looker:
+    #         return ""
+    #     # get and identify all objects
+    #     visible = (con for con in self.contents if con != looker and
+    #                con.access(looker, "view"))
+    #     exits, users, things = [], [], []
+    #     for con in visible:
+    #         key = con.get_display_name(looker)
+    #         if con.destination:
+    #             exits.append(key)
+    #         elif con.has_player:
+    #             users.append("|c%s|n" % key)
+    #         else:
+    #             things.append(key)
+    #     # get description, build string
+    #     string = "\n|c%s|n\n" % self.get_display_name(looker)
+    #     desc = self.db.desc
+    #     hud = self.db.hud
+    #     if desc:
+    #         string += "%s" % desc
+    #     if hud:
+    #         string += "\n%s" % hud
+    #     if exits:
+    #         string += "\n|wExits:|n " + ", ".join(exits)
+    #     if users or things:
+    #         string += "\n|wYou see:|n " + ", ".join(users + things)
+    #     return string
+
 class WildernessExit(DefaultExit):
     """
     This is an Exit object used inside a WildernessRoom. Instead of changing
@@ -631,7 +672,7 @@ class WildernessMapProvider(object):
 
     This is a simple provider that just creates an infinite large grid area.
     """
-    room_typeclass = WildernessRoom
+    room_typeclass = Loc
     exit_typeclass = WildernessExit
 
     def is_valid_coordinates(self, wilderness, coordinates):
