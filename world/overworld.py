@@ -262,6 +262,7 @@ class Sector(wilderness.WildernessScript):
     """
     pass
 
+
 class SectorMapProvider(wilderness.WildernessMapProvider):
     """
     Documentation on mapproviders can be found in evennia/contrib/wilderness.py
@@ -275,8 +276,14 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
     # I might need to save this as an attribute on the Sector itself
     # Or I could have this associated with the Sector key instead of ref
     neighbors = {}
-    # TODO: Put this in a hud.py somewhere
-
+    # Coordinates of landmarks associated with their properties
+    # Eventually this will be created programmatically
+    landmarks = {
+        (36, 36): {
+            'name': 'High hill',
+            'desc': 'Deep in the hillside, you find yourself on a very high hill'
+        }
+    }
 
     def __init__(self, map_str):
         """
@@ -390,14 +397,19 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         Used if a builder attempts to run commands on this room, I believe
 
         Args:
-            coordss: coordinates of the loc
+            coords: coordinates of the loc
         """
         legend = world.sector_glyphs.glyph_legend
         gcoords = self.glyph_coordinates(coords)
-        glyph = self.find_glyph(gcoords)
-        locprops = legend[glyph]
-        # Leaving this to change color easily
-        return '{}'.format(locprops["name"])
+        if gcoords not in self.landmarks:
+            glyph = self.find_glyph(gcoords)
+            locprops = legend[glyph]
+            name = '{}{}{}'.format(locprops["color"],
+                                   locprops["name"],'|n')
+        else:
+            name = '{}{}{}'.format(locprops["color"],
+                                   self.landmarks[gcoords]["name"], '|n')
+        return name
 
     def at_prepare_room(self, coords, caller, loc):
         """
@@ -410,12 +422,22 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         """
         legend = world.sector_glyphs.glyph_legend
         gcoords = self.glyph_coordinates(coords)
-        glyph = self.find_glyph(gcoords)
-        locprops = legend[glyph]
-        loc.db.name = locprops["name"]
-        loc.db.desc = '{}{}{}'.format('|045', locprops["desc"], '|n')
+        # A regular Loc with typical properties
+        if gcoords not in self.landmarks:
+            glyph = self.find_glyph(gcoords)
+            locprops = legend[glyph]
+            # Set Loc name
+            loc.db.name = locprops["name"]
+            # Set Loc desc
+            desc_string = '{}{}{}'.format('|045', locprops["desc"], '|n')
+        # This Loc happens to be a landmark
+        else:
+            loc.db.name = self.landmarks[gcoords]["name"]
+            desc_string = '|555' + self.landmarks[gcoords]["desc"] + '|n'
+        loc.db.desc = evtable.EvTable(desc_string, align="l", valign="t",
+                                      height=6, width=80)
 
-        # Draw the hud
+        # Build the hud
         # TODO: Account for adjacent sectors
         # Future Release: Account for different sized scans
         scan_grid = ((-1, 1),  (0, 1),  (1, 1),
@@ -435,23 +457,25 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
                 e += '|n'
                 elements.append(e)
             return elements
-        scan_string = '╓───scans───╖\n'
+        scan_string = '╓───scanX───╖\n'
         scan_string += '║{} {} {}║\n'.format(*(scan_glyphs(self, gcoords, scan_grid[0:3])))
         scan_string += '║{} {} {}║\n'.format(*(scan_glyphs(self, gcoords, scan_grid[3:6])))
         scan_string += '║{} {} {}║\n'.format(*(scan_glyphs(self, gcoords, scan_grid[6:9])))
-        scan_string += '╙───scans───╜'
+        scan_string += '╙───scanY───╜'
 
-        # Draw the Compass
+        # Build the Compass
         def show_coords(cs):
             x, y = cs
             xpad = ' '
             if 0 <= x < 10: xpad = '  '
             ypad = ' '
             if 0 <= y < 10: ypad = '  '
-            cstring = xpad + str(x) + ',' + str(y) + ypad
+            cstring = xpad + '|555' + str(x) + '|n,|555' + str(y) + '|n' + ypad
             return cstring
         comp_string = 'Compass\n'
         comp_string += '~~~~~~~\n'
+        comp_string += '[ Sec:|555???|n ]\n'
+        comp_string += '|400+|n\n'
         comp_string += '[{}]'.format(show_coords(coords))
 
         loc.db.hud = evtable.EvTable(scan_string,comp_string,

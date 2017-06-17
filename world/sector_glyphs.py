@@ -13,81 +13,94 @@ Properties:
 
 """
 glyph_legend = {
-    "f": {
-        "name":"Forest",
-        "color":"|020",
-        "desc":"Can't see very far in the forest",
-        "scan":"FFF",
+    "F": {
+        "name":"Superfungi Forest",
+        "color":"|302",
+        "desc":"Be it rainfall, faint filtered light, decaying matter, quantum "
+               "irregularities or something else you'd rather not speculate "
+               "upon, the fungi of this region have grown unchecked, perhaps "
+               "for generations",
+        "scan":"♣Ω♠",
         "pass":True
     },
     "w": {
-        "name":"Wasteland",
+        "name":"Ruined Wasteland",
         "color":"|111",
-        "desc":"A wasteland of rubble and debris",
-        "scan":"w.w",
+        "desc":"Countless generations ago, these dry, decaying and crumbling "
+               "remains were part of other civilizations; perhaps those of "
+               "great people?",
+        "scan":"π▄▌",
         "pass":True
     },
-    "g": {
-        "name":"Grassland",
-        "color":"|230", #or 240
-        "desc":"Grass sways in the breeze for miles",
-        "scan":'"""',
+    "_": {
+        "name":"Rock Flats",
+        "color":"|443", #or 240
+        "desc":"Miles of featureless earth and rock cause the mind to slip in "
+               "the darkness, but at least the footing is easy",
+        "scan":'_._',
         "pass":True
     },
     "h": {
-        "name":"Hills",
-        "color":"|321", #or 221
-        "desc":"Hiking through the hills is a tiring effort",
-        "scan":"hhh",
+        "name":"Rock Hills",
+        "color":"|221", #or 221
+        "desc":"This is a stony and rocky land, and it tires the legs and ruins "
+               "the shoes of those who travel it",
+        "scan":"⌂^∩",
         "pass":True
     },
     "p": {
-        "name":"Plains",
-        "color":"|531",
-        "desc":"Plains stretch as far as...well you get the point",
-        "scan":"_._",
+        "name":"Rock Fungi Plains",
+        "color":"|415",
+        "desc":"The wide world teems with life, home to at least hundreds of "
+               "varieties of fungi, judging from what you've seen",
+        "scan":"°σ•",
         "pass":True
     },
     "I": {
         "name":"Road",
         "color":"|555",
-        "desc":"A crumbling road snakes through the wilderness",
-        "scan":".I.",
+        "desc":"Crumbling roads and highways that certainly lead nowhere, but "
+               "are your companions and guides, nonetheless",
+        "scan":"I█I",
         "pass":True
     },
     "M": {
-        "name":"Mountain",
-        "color":"|333",
-        "desc":"Upon a mountain range, surveying the land around you",
-        "scan":"/M\\",
+        "name":"Mountains",
+        "color":"|222",
+        "desc":"What madness lives in the mountains? The sooner you can be "
+               "rid from them, the better",
+        "scan":"▲▲▲",
         "pass":True
     },
-    "m": {
-        "name":"Marsh",
-        "color":"|415|[011",
-        "desc":"You slog through some stinking marshland",
-        "scan":'"""',
+    "T": {
+        "name":"Stalagmite Forest",
+        "color":"|211",
+        "desc":"Moving warily through the claustrophobic spines, spurs and "
+               "columns is nerve-wracking, as they seem to have no end",
+        "scan":'↑↑↑',
         "pass":True
     },
     "C": {
         "name":"Cavewall",
         "color":"|211",
         "desc":"Uncrossable cave wall",
-        "scan":"[C]",
+        "scan":"▒▒▒",
         "pass":False
     },
-    "r": {
-        "name":"River",
-        "color":"|115",
-        "desc":"How did you get here, are you Jesus?",
-        "scan":"~~~",
+    "~": {
+        "name":'Deep "Water"',
+        "color":"|040|[002",
+        "desc":"You carefully cross the sinister water, hoping the fumes alone "
+               "aren't enough to kill",
+        "scan":"≈≈≈",
         "pass":False
     },
     "s": {
         "name": "Shallows",
-        "color": "|235",
-        "desc": "A place where water is shallow enough to ford",
-        "scan": "~s~",
+        "color": "|240|[012",
+        "desc": "You slosh for miles through irradiated wetland, trying  your "
+                "best to ignore the stench, or at least not pass out from it",
+        "scan": "~~~",
         "pass": True
     },
     ".": {
