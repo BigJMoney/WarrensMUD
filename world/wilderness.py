@@ -170,6 +170,7 @@ class WildernessScript(DefaultScript):
         """
         Called when the script is started and also after server reloads.
         """
+        # Bug here upon world creation and reloading server
         for coordinates, room in self.db.rooms.items():
             room.ndb.wildernessscript = self
             room.ndb.active_coordinates = coordinates

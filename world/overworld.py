@@ -77,15 +77,12 @@ class Overworld(wilderness.WildernessScript):
         This function creates a new world but it doesn't delete the previous
         one which would still be present in the db with all its sectors.
 
-            Args:
-                map_config: A dict pairing overworld levels with the size (in
-                sectors) to make them
         """
         # The legend for loc names and descriptions, for each map glyph
         self.db.glyph_legend = world.sector_glyphs.glyph_legend
         # The number of sectors per world level
         # TODO: Implement retrieval from settings.py
-        self.db.map_config = { 1:100 }
+        map_config = {1: 100}
         # Sector counter to create unique keys from
         self.db.numsectors = 0
         logger.log_info("OverworldInit: PLACEHOLDER: Retrieved world makeup "
@@ -96,7 +93,7 @@ class Overworld(wilderness.WildernessScript):
             self.db.worldmap[level] = {}
 
         # Make a world!
-        self.world_storm(dict(self.db.map_config))
+        self.world_storm(map_config)
 
     # @property
     # def numsectors(self):
@@ -131,7 +128,7 @@ class Overworld(wilderness.WildernessScript):
 
         placeholder = {}
         for num in range(size):
-            placeholder['ph_coord' + str(num)] = (1,2,3)
+            placeholder['ph_coord' + str(num)] = (1, 2, 3)
         return placeholder
         pass
 
@@ -144,12 +141,10 @@ class Overworld(wilderness.WildernessScript):
         Returns:
              a SectorMapProvider instance
         """
-        # Our sector map
-        secmap_str = ''
-
         # TODO: Algorithm to create a sector
         # Currently I'm pulling from a hand-made file
         str_file = open('.\\world\\sector_proto.txt')
+        # Our sector map
         secmap_str = str_file.read()
         logger.log_info("WorldStorm: PLACEHOLDER: Generated a sector")
 
@@ -206,25 +201,26 @@ class Overworld(wilderness.WildernessScript):
         # How many seconds a world storm lasts
         locktime = 300
 
-        for level in list(self.db.map_config.keys()):
+        for level in list(map_config.keys()):
             # Combines existing sectors with newly created ones
             secs = []
             # Create node map of coords:neighbors
-            neighbormap.update(self.create_mapnodes(self.db.map_config[level]))
+            neighbormap.update(self.create_mapnodes(map_config[level]))
             logger.log_info("WorldStorm: PLACEHOLDER: Node map finished")
             logger.log_info("WorldStorm: Map of neighbors created")
-            if self.db.map_config[level] < 1:
+            if map_config[level] < 1:
                 logger.log_error("WorldStorm: ERROR: Overworld.map_config "
-                                "is less than 1. This is not the proper way to "
-                                "erase a level. Fix in settings.py. Aborting "
-                                "world storm.")
+                                 "is less than 1. This is not the proper way "
+                                 "to erase a level. Fix in settings.py. "
+                                 "Aborting world storm.")
                 return False
             # Code if there is an existing overworld
             if len(self.db.worldmap[level]) > 0:
                 if len(self.db.worldmap[level]) > len(neighbormap):
                     logger.log_error("WorldStorm: ERROR: Overworld.map_config "
-                                    "is less than the existing world size. Fix "
-                                    "in settings.py. Aborting world storm.")
+                                     "is less than the existing world size. "
+                                     "Fix in settings.py. Aborting world "
+                                     "storm.")
                     return False
                 # TODO: Broadcast the storm and lock down inter-sector travel 5 mins
                 logger.log_info("WorldStorm: PLACEHOLDER: Broadcast storm and "
@@ -256,6 +252,7 @@ class Overworld(wilderness.WildernessScript):
             # caveinate this level
             self.caveinate_sectors(dict(self.db.worldmap[level]), neighbormap)
 
+
 class Sector(wilderness.WildernessScript):
     """
     Just a name change wrapper for now, but may be used in the future.
@@ -279,9 +276,26 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
     # Coordinates of landmarks associated with their properties
     # Eventually this will be created programmatically
     landmarks = {
-        (36, 36): {
-            'name': 'High hill',
-            'desc': 'Deep in the hillside, you find yourself on a very high hill'
+        (37, 26): {
+            'name': 'High Hill',
+            'desc': 'Deep in the hillside, you find yourself on a very high '
+                    'hill that stands out from all the others'
+        },
+        (39, 21): {
+            'name': 'Valley',
+            'desc': 'Deep in the hillside, you find yourself passing through a '
+                    'long and winding valley'
+        },
+        (43, 47): {
+            'name': 'Scenic Overlook',
+            'desc': 'Clambering down one of the slopes, you arrive on a scenic '
+                    'overlook where the gray twilight of the Earthstar limns '
+                    'the horizon as far as the eye can see'
+        },
+        (12, 31): {
+            'name': 'Cliff\'s Edge',
+            'desc': "Clambering down one of the slopes, you arrive at the edge "
+                    "of a very sharp cliff, with a drop you'll not soon forget"
         }
     }
 
@@ -293,7 +307,8 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         self.map_str = map_str
         # Legend of glyphs (dict)
 
-    def glyph_coordinates(self, coords):
+    @staticmethod
+    def glyph_coordinates(coords):
         """
         Translates sector (game) coordinates into glyph (map_str) coordinates
 
@@ -308,7 +323,6 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         """
         # The translation
         coords_offset = (36, 32)
-
         # Translate map coords into glyph coords
         gcoords = tuple(a + b for a, b in zip(coords, coords_offset))
         return gcoords
@@ -401,11 +415,13 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         """
         legend = world.sector_glyphs.glyph_legend
         gcoords = self.glyph_coordinates(coords)
+        glyph = self.find_glyph(gcoords)
+        locprops = legend[glyph]
+        # Regular Loc name
         if gcoords not in self.landmarks:
-            glyph = self.find_glyph(gcoords)
-            locprops = legend[glyph]
             name = '{}{}{}'.format(locprops["color"],
-                                   locprops["name"],'|n')
+                                   locprops["name"], '|n')
+        # Loc with a Landmark name
         else:
             name = '{}{}{}'.format(locprops["color"],
                                    self.landmarks[gcoords]["name"], '|n')
@@ -422,15 +438,15 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         """
         legend = world.sector_glyphs.glyph_legend
         gcoords = self.glyph_coordinates(coords)
-        # A regular Loc with typical properties
+        glyph = self.find_glyph(gcoords)
+        locprops = legend[glyph]
+        # Regular Loc properties
         if gcoords not in self.landmarks:
-            glyph = self.find_glyph(gcoords)
-            locprops = legend[glyph]
             # Set Loc name
             loc.db.name = locprops["name"]
             # Set Loc desc
             desc_string = '{}{}{}'.format('|045', locprops["desc"], '|n')
-        # This Loc happens to be a landmark
+        # Loc with a Landmark description
         else:
             loc.db.name = self.landmarks[gcoords]["name"]
             desc_string = '|555' + self.landmarks[gcoords]["desc"] + '|n'
@@ -443,16 +459,17 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         scan_grid = ((-1, 1),  (0, 1),  (1, 1),
                      (-1, 0),  (0, 0),  (1, 0),
                      (-1, -1), (0, -1), (1, -1))
-        def scan_glyphs(self, gc, sgrid):
+
+        def scan_glyphs(slf, gc, sgrid):
             # Adds sgrid offsets to gcs (coordinates) and returns minimap glyphs
             # including colorcodes
             elements = []
             for offset in sgrid:
                 ngc = tuple(x + y for x, y in zip(gc, offset))
                 # Get the offset gluph's color
-                e = legend[self.find_glyph(ngc)]["color"]
+                e = legend[slf.find_glyph(ngc)]["color"]
                 # Get it's minimap glyph
-                e += self.find_glyph(ngc, scan=True)
+                e += slf.find_glyph(ngc, scan=True)
                 # Close the color code
                 e += '|n'
                 elements.append(e)
@@ -467,9 +484,11 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         def show_coords(cs):
             x, y = cs
             xpad = ' '
-            if 0 <= x < 10: xpad = '  '
+            if 0 <= x < 10:
+                xpad = '  '
             ypad = ' '
-            if 0 <= y < 10: ypad = '  '
+            if 0 <= y < 10:
+                ypad = '  '
             cstring = xpad + '|555' + str(x) + '|n,|555' + str(y) + '|n' + ypad
             return cstring
         comp_string = 'Compass\n'
@@ -478,7 +497,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         comp_string += '|400+|n\n'
         comp_string += '[{}]'.format(show_coords(coords))
 
-        loc.db.hud = evtable.EvTable(scan_string,comp_string,
+        loc.db.hud = evtable.EvTable(scan_string, comp_string,
                                      border=None, align="c", width=32)
         logger.log_info("Navigation: Loc desc retrieved")
         # TODO: use self.map_str to determine minimap string
@@ -487,6 +506,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         pass
 
 # Here is the recruit mapping code
+
 
 class RecruitMapper(Script):
     """

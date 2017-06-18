@@ -35,8 +35,9 @@ glyph_legend = {
     "_": {
         "name":"Rock Flats",
         "color":"|443", #or 240
-        "desc":"Miles of featureless earth and rock cause the mind to slip in "
-               "the darkness, but at least the footing is easy",
+        "desc":"Miles of featureless earth and rock cause the mind to wander "
+               "wildly by the light of the dim star, but at least the footing "
+               "is easy",
         "scan":'_._',
         "pass":True
     },
@@ -67,8 +68,8 @@ glyph_legend = {
     "M": {
         "name":"Mountains",
         "color":"|222",
-        "desc":"What madness lives in the mountains? The sooner you can be "
-               "rid from them, the better",
+        "desc":"What madness lives in the mountains? The sooner you can depart "
+               "from them and their starshadow, the better",
         "scan":"▲▲▲",
         "pass":True
     },
@@ -90,8 +91,8 @@ glyph_legend = {
     "~": {
         "name":'Deep "Water"',
         "color":"|040|[002",
-        "desc":"You carefully cross the sinister water, hoping the fumes alone "
-               "aren't enough to kill",
+        "desc":"You carefully cross the sinister water, hoping such long "
+               "exposure to the fumes alone aren't enough to kill or mutate",
         "scan":"≈≈≈",
         "pass":False
     },
