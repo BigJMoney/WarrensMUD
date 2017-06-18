@@ -61,36 +61,6 @@ from evennia import create_object, create_script
 from evennia.utils import inherits_from
 
 
-def enter_wilderness(obj, coordinates=(0, 0), name="default"):
-    """
-    Moves obj into the wilderness. The wilderness needs to exist first and the
-    provided coordinates needs to be valid inside that wilderness.
-
-    Args:
-        obj (object): the object to move into the wilderness
-        coordinates (tuple), optional): the coordinates to move obj to into
-            the wilderness. If not provided, defaults (0, 0)
-        name (str, optional): name of the wilderness map, if not using the
-            default one
-
-    Returns:
-        bool: True if obj succesfully moved into the wilderness.
-
-    """
-    # TODO: I might have to override this blocking of non-unique names
-    # However I don't really think I need this function and can use it as an
-    # example of how to build my own
-    if not WildernessScript.objects.filter(db_key=name).exists():
-        return False
-
-    script = WildernessScript.objects.get(db_key=name)
-    if script.is_valid_coordinates(coordinates):
-        script.move_obj(obj, coordinates)
-        return True
-    else:
-        return False
-
-
 def get_new_coordinates(coordinates, direction):
     """
     Returns the coordinates of direction applied to the provided coordinates.
@@ -234,7 +204,7 @@ class WildernessScript(DefaultScript):
         """
         # Update the position of this obj in the wilderness
         self.itemcoordinates[obj] = new_coordinates
-        old_room = obj.location
+        source_location = obj.location
 
         # Remove the obj's location. This is needed so that the object does not
         # appear in its old room should that room be deleted.
@@ -243,12 +213,12 @@ class WildernessScript(DefaultScript):
         try:
             # See if we already have a room for that location
             room = self.db.rooms[new_coordinates]
-            # There is. Try to destroy the old_room if it is not needed anymore
-            self._destroy_room(old_room)
+            # There is. Try to destroy the source_location if it is not needed anymore
+            self._destroy_room(source_location)
         except KeyError:
             # There is no room yet at new_location
-            if (old_room and not inherits_from(old_room, Loc)) or \
-               (not old_room):
+            if (source_location and not inherits_from(source_location, Loc)) or \
+               (not source_location):
                 # Obj doesn't originally come from a wilderness room.
                 # We'll create a new one then.
                 room = self._create_room(new_coordinates, obj)
@@ -256,13 +226,13 @@ class WildernessScript(DefaultScript):
                 # Obj does come from another wilderness room
                 create_new_room = False
 
-                if old_room.wilderness != self:
+                if source_location.wilderness != self:
                     # ... but that other wilderness room belongs to another
                     # wilderness map
                     create_new_room = True
-                    old_room.wilderness.at_after_object_leave(obj)
+                    source_location.wilderness.at_after_object_leave(obj)
                 else:
-                    for item in old_room.contents:
+                    for item in source_location.contents:
                         if item.has_player:
                             # There is still a player in the old room.
                             # Let's create a new room and not touch that old
@@ -275,9 +245,9 @@ class WildernessScript(DefaultScript):
                     # the old room
                     room = self._create_room(new_coordinates, obj)
                 else:
-                    # The old_room is empty: we are just going to reuse that
+                    # The source_location is empty: we are just going to reuse that
                     # room instead of creating a new one
-                    room = old_room
+                    room = source_location
 
         room.set_active_coordinates(new_coordinates, obj)
         obj.location = room
@@ -494,10 +464,16 @@ class WildernessRoom(typeclasses.rooms.Room):
             if exit.destination != self:
                 continue
             x, y = get_new_coordinates(new_coordinates, exit.key)
-            valid = self.wilderness.is_valid_coordinates((x, y))
+            check_res = self.wilderness.is_valid_coordinates((x, y))
 
-            if valid:
+            if check_res:
+                # If the check returned True, unlock the exit
                 exit.locks.add("traverse:true();view:true()")
+                # If it returned an Room, it's a Room entrance
+                # TODO: change to new SiteRoom class
+                if type(check_res) == typeclasses.rooms.Room:
+
+                    pass
             else:
                 exit.locks.add("traverse:false();view:false()")
 
@@ -541,40 +517,6 @@ class Loc(WildernessRoom):
 
     """
 
-    # def return_appearance(self, looker):
-    #     """
-    #     Special Loc description format
-    #
-    #     Args:
-    #         looker (Object): Object doing the looking.
-    #     """
-    #     if not looker:
-    #         return ""
-    #     # get and identify all objects
-    #     visible = (con for con in self.contents if con != looker and
-    #                con.access(looker, "view"))
-    #     exits, users, things = [], [], []
-    #     for con in visible:
-    #         key = con.get_display_name(looker)
-    #         if con.destination:
-    #             exits.append(key)
-    #         elif con.has_player:
-    #             users.append("|c%s|n" % key)
-    #         else:
-    #             things.append(key)
-    #     # get description, build string
-    #     string = "\n|c%s|n\n" % self.get_display_name(looker)
-    #     desc = self.db.desc
-    #     hud = self.db.hud
-    #     if desc:
-    #         string += "%s" % desc
-    #     if hud:
-    #         string += "\n%s" % hud
-    #     if exits:
-    #         string += "\n|wExits:|n " + ", ".join(exits)
-    #     if users or things:
-    #         string += "\n|wYou see:|n " + ", ".join(users + things)
-    #     return string
 
 class WildernessExit(DefaultExit):
     """
@@ -641,10 +583,12 @@ class WildernessExit(DefaultExit):
             bool: True if the traverse is allowed to happen
 
         """
-        itemcoordinates = self.location.wilderness.db.itemcoordinates
-
-        current_coordinates = itemcoordinates[traversing_object]
-        new_coordinates = get_new_coordinates(current_coordinates, self.key)
+        try:
+            new_coordinates = self.db.coords_destination
+        except AttributeError:
+            itemcoordinates = self.location.wilderness.db.itemcoordinates
+            current_coordinates = itemcoordinates[traversing_object]
+            new_coordinates = get_new_coordinates(current_coordinates, self.key)
 
         if not self.at_traverse_coordinates(traversing_object,
                                             current_coordinates,
@@ -653,6 +597,10 @@ class WildernessExit(DefaultExit):
 
         if not traversing_object.at_before_move(None):
             return False
+        # Not sure I'm happy with how the module does this compared to
+        # traversing_object.announce_move_from(), announce_move_to()
+        # Also not sure why this isn't performed in move_obj so that it better
+        # mirrors that code flow
         traversing_object.location.msg_contents("{} leaves to {}".format(
             traversing_object.key, new_coordinates),
             exclude=[traversing_object])

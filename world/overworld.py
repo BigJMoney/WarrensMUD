@@ -370,7 +370,6 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
     def is_valid_coordinates(self, overworld, coords):
         """
         Uses the map string to check if the coordinates are valid to move to
-        Needs to check for cave walls and movement into adjacent sectors
 
         Args:
             overworld: Ref to the Overworld (caller)
@@ -379,16 +378,11 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         Returns:
             Not sure yet :) Possibly true, false or a ref to a neighbor
         """
-        legend = world.sector_glyphs.glyph_legend
-        # The characters that define impassable spaces (out of bounds)
-        oob_glyphs = [gkey for gkey in legend if not legend[gkey]["pass"]]
-        # oob_glyphs = []
-        # # Find and set our impassable glyphs
-        # legend = world.sector_glyphs.glyph_legend
-        # for gkey in legend:
-        #     if legend[gkey]["pass"] == False:
-        #         oob_glyphs.append(gkey)
-        # Convert sector coords to glyph coords
+        # TODO: Detect SiteRoom for external travel
+        # TODO: Detect edge for cross-sector travel
+        # Remember to block cross-sector travel during a world-storm
+
+        # Translate WarrensMUD coords to map_str coords
         gcoords = self.glyph_coordinates(coords)
         # Ensure gcoords are on the map (negative index exploit)
         if gcoords < (0, 0) or tuple(reversed(gcoords)) < (0, 0):
@@ -396,15 +390,20 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
                            'SectorMapProvider'.format(coords))
             return False
         glyph = self.find_glyph(gcoords)
-        # Check if the glyph was on the map
+        # Ensure the glyph was on the map
         if glyph == 'invalid':
             logger.log_err('Navigation: ERROR: invalid coordinates {} given to '
                            'SectorMapProvider'.format(coords))
             return False
+
+        # If the glyph is an external location, look it up
+        # Return the location reference?
+
+        legend = world.sector_glyphs.glyph_legend
+        # The characters that define impassable spaces (out of bounds)
+        oob_glyphs = [gkey for gkey in legend if not legend[gkey]["pass"]]
+        # Return True if it's a valid glyph
         return glyph not in oob_glyphs
-        # TODO: Detect edge for cross-sector travel
-        # Remember to block cross-sector travel during a world-storm
-        pass
 
     def get_location_name(self, coords):
         """

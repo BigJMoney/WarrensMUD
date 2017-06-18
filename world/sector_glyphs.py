@@ -20,7 +20,7 @@ glyph_legend = {
                "irregularities or something else you'd rather not speculate "
                "upon, the fungi of this region have grown unchecked, perhaps "
                "for generations",
-        "scan":"♣Ω♠",
+        "scan":"Ω♣Ω", # ♣Ω♠
         "pass":True
     },
     "w": {
@@ -29,12 +29,12 @@ glyph_legend = {
         "desc":"Countless generations ago, these dry, decaying and crumbling "
                "remains were part of other civilizations; perhaps those of "
                "great people?",
-        "scan":"π▄▌",
+        "scan":".π▄", # π▄▌
         "pass":True
     },
     "_": {
-        "name":"Rock Flats",
-        "color":"|443", #or 240
+        "name":"Stone Flats",
+        "color":"|222",
         "desc":"Miles of featureless earth and rock cause the mind to wander "
                "wildly by the light of the dim star, but at least the footing "
                "is easy",
@@ -43,10 +43,10 @@ glyph_legend = {
     },
     "h": {
         "name":"Rock Hills",
-        "color":"|221", #or 221
+        "color":"|221",
         "desc":"This is a stony and rocky land, and it tires the legs and ruins "
                "the shoes of those who travel it",
-        "scan":"⌂^∩",
+        "scan":"∩.∩", # or ⌂^∩
         "pass":True
     },
     "p": {
@@ -54,7 +54,7 @@ glyph_legend = {
         "color":"|415",
         "desc":"The wide world teems with life, home to at least hundreds of "
                "varieties of fungi, judging from what you've seen",
-        "scan":"°σ•",
+        "scan":"°_σ", # °σ•
         "pass":True
     },
     "I": {
@@ -62,7 +62,7 @@ glyph_legend = {
         "color":"|555",
         "desc":"Crumbling roads and highways that certainly lead nowhere, but "
                "are your companions and guides, nonetheless",
-        "scan":"I█I",
+        "scan":".█.",
         "pass":True
     },
     "M": {
