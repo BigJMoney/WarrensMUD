@@ -89,7 +89,7 @@ class Overworld(wilderness.WildernessScript):
                         "from settings.py")
         # A map of world node coordinates to sector objects
         self.db.worldmap = {}
-        for level in self.db.map_config:
+        for level in map_config:
             self.db.worldmap[level] = {}
 
         # Make a world!

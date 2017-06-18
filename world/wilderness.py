@@ -553,6 +553,9 @@ class WildernessExit(DefaultExit):
         Called when an object wants to travel from one place inside the
         wilderness to another place inside the wilderness.
 
+        Note: This is not called when an obj traverses from an external Room
+        into the wilderness, beacuse there would be no current_coordinates.
+
         If this returns True, then the traversing can happen. Otherwise it will
         be blocked.
 
@@ -583,17 +586,17 @@ class WildernessExit(DefaultExit):
             bool: True if the traverse is allowed to happen
 
         """
-        try:
-            new_coordinates = self.db.coords_destination
-        except AttributeError:
+        # External exits into the wilderness have coordinates built-in
+        new_coordinates = self.db.coords_destination
+        if not new_coordinates:
+            # Otherwise search the WildernessScript data to collect them
             itemcoordinates = self.location.wilderness.db.itemcoordinates
             current_coordinates = itemcoordinates[traversing_object]
             new_coordinates = get_new_coordinates(current_coordinates, self.key)
-
-        if not self.at_traverse_coordinates(traversing_object,
-                                            current_coordinates,
-                                            new_coordinates):
-            return False
+            if not self.at_traverse_coordinates(traversing_object,
+                                                current_coordinates,
+                                                new_coordinates):
+                return False
 
         if not traversing_object.at_before_move(None):
             return False
@@ -602,14 +605,17 @@ class WildernessExit(DefaultExit):
         # Also not sure why this isn't performed in move_obj so that it better
         # mirrors that code flow
         traversing_object.location.msg_contents("{} leaves to {}".format(
-            traversing_object.key, new_coordinates),
-            exclude=[traversing_object])
+            traversing_object.key, self.key))
 
-        self.location.wilderness.move_obj(traversing_object, new_coordinates)
+        # Don't reference the room's shortcut here because it might be a normal Room
+        self.location.ndb.wildernessscript.move_obj(traversing_object, new_coordinates)
 
         traversing_object.location.msg_contents("{} arrives from {}".format(
-            traversing_object.key, current_coordinates),
-            exclude=[traversing_object])
+            traversing_object.key, self.key))
+
+        # traversing_object.location.msg_contents("{} arrives from {}".format(
+        #     traversing_object.key, current_coordinates),
+        #     exclude=[traversing_object])
 
         traversing_object.at_after_move(None)
         return True
