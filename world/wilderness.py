@@ -516,6 +516,27 @@ class Loc(WildernessRoom):
     A WarrensMUD override to extend functionality
 
     """
+    def ra_name(self, looker):
+        """
+        Displays the room name
+
+        Override for custom functionality
+
+        Args:
+            looker (Object): Object doing the looking.
+        """
+        return '\n'
+
+    def ra_exits(self, exits):
+        """
+        Displays the room exits
+
+        Override for custom functionality
+
+        Args:
+            exits (list): Exit objects in the room (I believe)
+        """
+        return ''
 
 
 class WildernessExit(DefaultExit):
@@ -605,13 +626,15 @@ class WildernessExit(DefaultExit):
         # Also not sure why this isn't performed in move_obj so that it better
         # mirrors that code flow
         traversing_object.location.msg_contents("{} leaves to {}".format(
-            traversing_object.key, self.key))
+            traversing_object.key, self.key, exclude=[traversing_object]))
 
         # Don't reference the room's shortcut here because it might be a normal Room
         self.location.ndb.wildernessscript.move_obj(traversing_object, new_coordinates)
 
         traversing_object.location.msg_contents("{} arrives from {}".format(
-            traversing_object.key, self.key))
+            traversing_object.key,
+            self.wilderness.mapprovider.get_location_name(current_coordinates),
+            exclude=[traversing_object]))
 
         # traversing_object.location.msg_contents("{} arrives from {}".format(
         #     traversing_object.key, current_coordinates),

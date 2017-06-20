@@ -442,22 +442,31 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         # Regular Loc properties
         if gcoords not in self.landmarks:
             # Set Loc name
-            loc.db.name = locprops["name"]
+            # loc.db.name = locprops["name"]
             # Set Loc desc
-            desc_string = '{}{}{}'.format('|045', locprops["desc"], '|n')
+            desc_string = '\n{}{}{}'.format('|045', locprops["desc"], '|n')
         # Loc with a Landmark description
         else:
-            loc.db.name = self.landmarks[gcoords]["name"]
-            desc_string = '|555' + self.landmarks[gcoords]["desc"] + '|n'
-        loc.db.desc = evtable.EvTable(desc_string, align="l", valign="t",
-                                      height=6, width=80)
+            # loc.db.name = self.landmarks[gcoords]["name"]
+            desc_string = '\n|555' + self.landmarks[gcoords]["desc"] + '|n'
+        guide_string1 = '|045\n  ╓\n  ║\n  ║\n  ║\n  ╙\n|n'
+        loc.db.desc = evtable.EvTable(guide_string1, desc_string,
+                                      align="l", valign="t", height=6,
+                                      border=None)
+        loc.db.desc.reformat_column(0, width=5)
+        loc.db.desc.reformat_column(1, width=75)
 
         # Build the hud
         # TODO: Account for adjacent sectors
         # Future Release: Account for different sized scans
-        scan_grid = ((-1, 1),  (0, 1),  (1, 1),
-                     (-1, 0),  (0, 0),  (1, 0),
-                     (-1, -1), (0, -1), (1, -1))
+
+        # 1. Readout
+        rstring = "ENVIRONMENT\n"
+        rstring += "Loc: {}\n".format(self.get_location_name(coords))
+        rstring += "Terrain: {}{}{}\n".format(legend[self.find_glyph(gcoords)]["color"],
+                                              self.find_glyph(gcoords, scan=True),
+                                              '|n')
+        rstring += "Sector: {}".format(loc.wilderness.key)
 
         def scan_glyphs(slf, gc, sgrid):
             # Adds sgrid offsets to gcs (coordinates) and returns minimap glyphs
@@ -473,38 +482,58 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
                 e += '|n'
                 elements.append(e)
             return elements
+
+        # 2. Scanner
+        x, y = coords
+        xchar = str(x)
+        xsymbol = ''
+        if x < 0:
+            xsymbol = '-'
+            xchar = str(abs(x))
+        xpad = '0'
+        if x <= -10:
+            xpad = ''
+        if 0 <= x < 10:
+            xpad = '00'
+        ychar = str(y)
+        ysymbol = ''
+        if y < 0:
+            ysymbol = '-'
+            ychar = str(abs(y))
+        ypad = '0'
+        if y <= -10:
+            ypad = ''
+        if 0 <= y < 10:
+            ypad = '00'
+        xstring = ''.join(['|555', xsymbol, xpad, xchar, '|n'])
+        ystring = ''.join(['|555', ysymbol, ypad, ychar, '|n'])
+        print('x', xstring)
+        print('y', ystring)
+        scan_grid = ((-1, 1),  (0, 1),  (1, 1),
+                     (-1, 0),  (0, 0),  (1, 0),
+                     (-1, -1), (0, -1), (1, -1))
+        recruit_glyph = '|555{|550@|555}|n'
         scan_string = '╓──────║scanX║──────╖\n'
         scan_string += '║                   ║\n'
         scan_string += '─────  {} {} {}  ─────\n'.format(*(scan_glyphs(self, gcoords, scan_grid[0:3])))
-        scan_string += 'scanY  {} {} {}    ?  \n'.format(*(scan_glyphs(self, gcoords, scan_grid[3:6])))
+        scan_string += 'scanY  {2} {0} {4}   {1} \n'.format(recruit_glyph, ystring, *(scan_glyphs(self, gcoords, scan_grid[3:6])))
         scan_string += '─────  {} {} {}  ─────\n'.format(*(scan_glyphs(self, gcoords, scan_grid[6:9])))
         scan_string += '║                   ║\n'
-        scan_string += '╙──────║  ?  ║──────╜'
+        scan_string += '╙──────║ %s ║──────╜' % xstring
 
-        # Build the Compass
-        def show_coords(cs):
-            x, y = cs
-            xpad = ' '
-            if 0 <= x < 10:
-                xpad = '  '
-            ypad = ' '
-            if 0 <= y < 10:
-                ypad = '  '
-            cstring = xpad + '|555' + str(x) + '|n,|555' + str(y) + '|n' + ypad
-            return cstring
-        comp_string = 'Compass\n'
-        comp_string += '~~~~~~~\n'
-        comp_string += '[ Sec:|555???|n ]\n'
-        comp_string += '|400+|n\n'
-        comp_string += '[{}]'.format(show_coords(coords))
+        # 3. Vitals
+        # ne day this will reference real health :)
+        health_disp = 2
+        bauble_disp = 0
+        vstring = "VITALS\n"
+        vstring += "|511{}▾|n\n".format('♥ ' * health_disp)
+        vstring += "|550{} ⤈|n".format(str(bauble_disp))
 
-        hstring = "Health: |511♥ ♥ ♥|n"
-
-        loc.db.hud = evtable.EvTable(scan_string, comp_string, hstring,
-                                     border=None, align="c", valign='t',
-                                     width=80)
-        loc.db.hud.reformat_column(0, align='c')
-        loc.db.hud.reformat_column(2, align='r')
+        loc.db.hud = evtable.EvTable(scan_string, rstring, vstring, valign='t',
+                                     border=None)
+        loc.db.hud.reformat_column(0, align='c', width=29)
+        loc.db.hud.reformat_column(1, width=32)
+        loc.db.hud.reformat_column(2, align='r', width=19)
         logger.log_info("Navigation: Loc desc retrieved")
         # TODO: use self.map_str to determine minimap string
         # Use EvTable for minimap

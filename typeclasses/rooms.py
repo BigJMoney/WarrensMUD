@@ -56,6 +56,7 @@ class Room(DefaultRoom):
             string += self.ra_exits(exits)
         if users or things:
             string += self.ra_users_things(users, things)
+        string += self.ra_spacer()
         return string
 
     # return_appearance sub-methods
@@ -115,3 +116,10 @@ class Room(DefaultRoom):
             things (list): Other objects in the room
         """
         return "\n|wYou see:|n " + ", ".join(users + things)
+
+    def ra_spacer(self):
+        """
+        Optional extra space after every room appearance
+        """
+
+        return '\n\n'
