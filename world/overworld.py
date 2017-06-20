@@ -473,11 +473,13 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
                 e += '|n'
                 elements.append(e)
             return elements
-        scan_string = '╓───scanX───╖\n'
-        scan_string += '║{} {} {}║\n'.format(*(scan_glyphs(self, gcoords, scan_grid[0:3])))
-        scan_string += '║{} {} {}║\n'.format(*(scan_glyphs(self, gcoords, scan_grid[3:6])))
-        scan_string += '║{} {} {}║\n'.format(*(scan_glyphs(self, gcoords, scan_grid[6:9])))
-        scan_string += '╙───scanY───╜'
+        scan_string = '╓──────║scanX║──────╖\n'
+        scan_string += '║                   ║\n'
+        scan_string += '─────  {} {} {}  ─────\n'.format(*(scan_glyphs(self, gcoords, scan_grid[0:3])))
+        scan_string += 'scanY  {} {} {}    ?  \n'.format(*(scan_glyphs(self, gcoords, scan_grid[3:6])))
+        scan_string += '─────  {} {} {}  ─────\n'.format(*(scan_glyphs(self, gcoords, scan_grid[6:9])))
+        scan_string += '║                   ║\n'
+        scan_string += '╙──────║  ?  ║──────╜'
 
         # Build the Compass
         def show_coords(cs):
@@ -496,8 +498,13 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         comp_string += '|400+|n\n'
         comp_string += '[{}]'.format(show_coords(coords))
 
-        loc.db.hud = evtable.EvTable(scan_string, comp_string,
-                                     border=None, align="c", width=32)
+        hstring = "Health: |511♥ ♥ ♥|n"
+
+        loc.db.hud = evtable.EvTable(scan_string, comp_string, hstring,
+                                     border=None, align="c", valign='t',
+                                     width=80)
+        loc.db.hud.reformat_column(0, align='c')
+        loc.db.hud.reformat_column(2, align='r')
         logger.log_info("Navigation: Loc desc retrieved")
         # TODO: use self.map_str to determine minimap string
         # Use EvTable for minimap
