@@ -33,7 +33,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         #
         # any commands you add below will overload the default ones.
         #
-        self.add(building.CmdSlink())
+        self.add(building.CmdLoclink())
 
 
 class PlayerCmdSet(default_cmds.PlayerCmdSet):

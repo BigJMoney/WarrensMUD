@@ -58,6 +58,7 @@ Implementation details:
 import typeclasses.rooms
 from evennia import DefaultRoom, DefaultExit, DefaultScript
 from evennia import create_object, create_script
+from evennia import logger
 from evennia.utils import inherits_from
 
 
@@ -147,6 +148,7 @@ class WildernessScript(DefaultScript):
         for item in self.db.itemcoordinates.keys():
             item.ndb.wilderness = self
 
+
     def is_valid_coordinates(self, coordinates):
         """
         Returns True if coordinates are valid (and can be travelled to).
@@ -226,11 +228,11 @@ class WildernessScript(DefaultScript):
                 # Obj does come from another wilderness room
                 create_new_room = False
 
-                if source_location.wilderness != self:
+                if source_location.ndb.wildernessscript != self:
                     # ... but that other wilderness room belongs to another
                     # wilderness map
                     create_new_room = True
-                    source_location.wilderness.at_after_object_leave(obj)
+                    source_location.ndb.wildernessscript.at_after_object_leave(obj)
                 else:
                     for item in source_location.contents:
                         if item.has_player:
@@ -354,15 +356,16 @@ class WildernessRoom(typeclasses.rooms.Room):
     room itself changes to display another area of the wilderness.
     """
 
-    @property
-    def wilderness(self):
-        """
-        Shortcut property to the wilderness script this room belongs to.
-
-        Returns:
-            WildernessScript: the WildernessScript attached to this room
-        """
-        return self.ndb.wildernessscript
+    # Had to comment this out for my hacky way of making wilderness links work
+    # @property
+    # def wilderness(self):
+    #     """
+    #     Shortcut property to the wilderness script this room belongs to.
+#
+    #     Returns:
+    #         WildernessScript: the WildernessScript attached to this room
+    #     """
+    #     return self.ndb.wildernessscript
 
     @property
     def location_name(self):
@@ -372,7 +375,7 @@ class WildernessRoom(typeclasses.rooms.Room):
         Returns:
             name (str)
         """
-        return self.wilderness.mapprovider.get_location_name(
+        return self.ndb.wildernessscript.mapprovider.get_location_name(
             self.coordinates)
 
     @property
@@ -400,7 +403,7 @@ class WildernessRoom(typeclasses.rooms.Room):
             # n, ne, ... exits.
             return
 
-        itemcoords = self.wilderness.db.itemcoordinates
+        itemcoords = self.ndb.wildernessscript.db.itemcoordinates
         if moved_obj in itemcoords:
             # This object was already in the wilderness. We need to make sure
             # it goes to the correct room it belongs to.
@@ -416,7 +419,7 @@ class WildernessRoom(typeclasses.rooms.Room):
             # Setting the location to None is important here so that we always
             # get a "fresh" room
             moved_obj.location = None
-            self.wilderness.move_obj(moved_obj, coordinates)
+            self.ndb.wildernessscript.move_obj(moved_obj, coordinates)
         else:
             # This object wasn't in the wilderness yet. Let's add it.
             itemcoords[moved_obj] = self.coordinates
@@ -431,11 +434,12 @@ class WildernessRoom(typeclasses.rooms.Room):
             target_location (Object): Where `moved_obj` is going.
 
         """
-        self.wilderness.at_after_object_leave(moved_obj)
+        self.ndb.wildernessscript.at_after_object_leave(moved_obj)
 
     def set_active_coordinates(self, new_coordinates, obj):
         """
         Changes this room to show the wilderness map from other coordinates.
+        BigJ: I call this the houdini script because it magics up the room
 
         Args:
             new_coordinates (tuple): coordinates as tuple of (x, y)
@@ -443,7 +447,7 @@ class WildernessRoom(typeclasses.rooms.Room):
                 coordinates to change
         """
         # Remove the reference for the old coordinates...
-        rooms = self.wilderness.db.rooms
+        rooms = self.ndb.wildernessscript.db.rooms
         del rooms[self.coordinates]
         # ...and add it for the new coordinates.
         self.ndb.active_coordinates = new_coordinates
@@ -455,7 +459,7 @@ class WildernessRoom(typeclasses.rooms.Room):
                 item.location = None
         # And every obj matching the new coordinates will get its location set
         # to this room
-        for item in self.wilderness.get_objs_at_coordinates(new_coordinates):
+        for item in self.ndb.wildernessscript.get_objs_at_coordinates(new_coordinates):
             item.location = self
 
         # Fix the lockfuncs for the exit so we can't go where we're not
@@ -464,7 +468,7 @@ class WildernessRoom(typeclasses.rooms.Room):
             if exit.destination != self:
                 continue
             x, y = get_new_coordinates(new_coordinates, exit.key)
-            check_res = self.wilderness.is_valid_coordinates((x, y))
+            check_res = self.ndb.wildernessscript.is_valid_coordinates((x, y))
 
             if check_res:
                 # If the check returned True, unlock the exit
@@ -479,7 +483,7 @@ class WildernessRoom(typeclasses.rooms.Room):
 
         # Finally call the at_prepare_room hook to give a chance to further
         # customise it
-        self.wilderness.mapprovider.at_prepare_room(new_coordinates, obj, self)
+        self.ndb.wildernessscript.mapprovider.at_prepare_room(new_coordinates, obj, self)
 
     def get_display_name(self, looker, **kwargs):
         """
@@ -555,7 +559,7 @@ class WildernessExit(DefaultExit):
         Returns:
             WildernessScript: the WildernessScript attached to this exit's room
         """
-        return self.location.wilderness
+        return self.location.ndb.wildernessscript
 
     @property
     def mapprovider(self):
@@ -611,7 +615,7 @@ class WildernessExit(DefaultExit):
         new_coordinates = self.db.coords_destination
         if not new_coordinates:
             # Otherwise search the WildernessScript data to collect them
-            itemcoordinates = self.location.wilderness.db.itemcoordinates
+            itemcoordinates = self.location.ndb.wildernessscript.db.itemcoordinates
             current_coordinates = itemcoordinates[traversing_object]
             new_coordinates = get_new_coordinates(current_coordinates, self.key)
             if not self.at_traverse_coordinates(traversing_object,
@@ -626,14 +630,15 @@ class WildernessExit(DefaultExit):
         # Also not sure why this isn't performed in move_obj so that it better
         # mirrors that code flow
         traversing_object.location.msg_contents("{} leaves to {}".format(
-            traversing_object.key, self.key, exclude=[traversing_object]))
+            traversing_object.key, self.wilderness.mapprovider.get_location_name(new_coordinates), exclude=[traversing_object]))
 
         # Don't reference the room's shortcut here because it might be a normal Room
         self.location.ndb.wildernessscript.move_obj(traversing_object, new_coordinates)
 
+        # Don't reference the room's shortcut here because it might be a normal Room
         traversing_object.location.msg_contents("{} arrives from {}".format(
             traversing_object.key,
-            self.wilderness.mapprovider.get_location_name(current_coordinates),
+            self.key,
             exclude=[traversing_object]))
 
         # traversing_object.location.msg_contents("{} arrives from {}".format(
@@ -642,6 +647,27 @@ class WildernessExit(DefaultExit):
 
         traversing_object.at_after_move(None)
         return True
+
+    def at_object_delete(self):
+        """
+        Adds to at_object_delete parent functionality
+        """
+        ret = super(WildernessExit, self).at_object_delete()
+        # Some of these exits lead to external rooms
+        # When they are deleted, those coord references must also be
+        coords = self.attributes.get("coords_destination")
+        if coords:
+            try:
+                del self.wilderness.db.externalrooms[coords]
+            except AttributeError:
+                logger.log_err("WildernessExit-Deletion: ERROR: Failed to find "
+                               "externalrooms coords using exit {} [{}]"
+                               "".format(self.key, self.dbref))
+            except:
+                logger.log_err("WildernessExit-Deletion: ERROR: Failed to "
+                               "delete coords {} from {}.externalrooms"
+                               "".format(coords, self.wilderness))
+        return ret
 
 
 class WildernessMapProvider(object):

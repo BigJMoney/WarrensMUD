@@ -1,27 +1,24 @@
 """
 Building and world design commands
 """
-
+import types
+import evennia
+import world.strings
+import world.wilderness
 from evennia.commands.default import building
+from evennia import logger
 from server.conf import settings
 from evennia.utils import create
 
 
-class CmdOpen(building.ObjManipCommand):
+class CmdLocOpen(building.ObjManipCommand):
     """
-    open a new exit from the current room
+    ...
 
     Usage:
-      @open <new exit>[;alias;alias..][:typeclass] [,<return exit>[;alias;..][:typeclass]]] = <destination>
+      @open ...
 
-    Switches:
-      sector - create an exit that leads to a sector
-
-    Handles the creation of exits. If a destination is given, the exit
-    will point there. The <return exit> argument sets up an exit at the
-    destination leading back to the current room. Destination name
-    can be given both as a #dbref and a name, if that name is globally
-    unique.
+    ...
 
     """
     key = "@open"
@@ -29,7 +26,7 @@ class CmdOpen(building.ObjManipCommand):
     help_category = "Building"
 
     # a custom member method to chug out exits and do checks
-    def create_exit(self, exit_name, location, destination, coords_destination,
+    def create_exit(self, exit_name, location, destination,
                                     exit_aliases=None, typeclass=None):
         """
         Helper function to avoid code duplication.
@@ -143,57 +140,126 @@ class CmdOpen(building.ObjManipCommand):
                              back_exit_typeclass)
 
 
-class CmdSlink(building.ObjManipCommand):
+class CmdLoclink(building.ObjManipCommand):
     """
     link an exit to a sector loc
 
     Usage:
-      @slink <sector>:<loc> = <exit>
+      @loclink <level>:<sector>, <loc_x>:<loc_y> = <exit>
 
-    <sector> must be a tuple of the form (level #, sector #)
+    <sector> must be a name. this may chance to a tuple (worldcoords) in the
+    future
     <loc> must be a coordinates tuple in the form (x, y). Be warned that it's
     possible to provide invalid coordinates which will cause the exit to
     not function.
 
-    Note that if a slinked exit leaves its current room, it will need to be
-    slinked again to operate.
-
+    Note that if an llinked exit leaves its current room, it will need to be
+    llinked again to operate.
     """
-    key = "@slink"
+    key = "@loclink"
+    aliases = ["@llink"]
     locks = "cmd:perm(open) or perm(Builders)"
     help_category = "Building"
 
     def func(self):
         """
-        ???
+        Runs the command
         """
+
         caller = self.caller
-
         if not self.args or not self.rhs:
-            string = "???"
+            string = "Usage: @loclink <level>:<sector>, <loc_x>:<loc_y> = <exit>"
             string += ""
             caller.msg(string)
             return
 
-        sector_in = self.lhs_objs[0]['name']
-        coords_in = self.lhs_objs[0]['option']
+        level = int(self.lhs_objs[0]['name'])
+        secnum = self.lhs_objs[0]['option']
+        loc_x = int(self.lhs_objs[1]['name'])
+        loc_y = int(self.lhs_objs[1]['option'])
         exit_name = self.rhs
+        coords = loc_x, loc_y
 
-        if not coords_in:
-            string = "???"
+        SEC_ERR_MSG = 'Sector must be a tuple in the form of two numbers like ' \
+                      '"(1, 20)" and must referece a level and sector that ' \
+                      'exist in the world.'
+        DUP_ERR_MSG = 'Loc {} already associated with another exit. Destroy ' \
+                      'that exit before proceeding'.format(coords)
+
+        # All parameters mandatory
+        if not level or not secnum or loc_x is None or loc_y is None\
+                or not exit_name:
+            string = "Usage: @loclink <level>:<sector>, <loc_x>:<loc_y> = <exit>"
             string += ""
             caller.msg(string)
             return
 
-        # Check that sector and loc values are correct format
+        worldmap = evennia.search_script('overworld')[0].db.worldmap
+        # Level must be in the world
+        if level not in worldmap:
+            caller.msg(SEC_ERR_MSG)
+            return
+        # secnum must refer to a sector that is on this particular level
+        # sec = evennia.search_script(secnum)[0]
+        sec = world.overworld.Sector.objects.get(db_key=secnum)
+        if not sec or sec not in list(worldmap[level].values()):
+            caller.msg(SEC_ERR_MSG)
+            return
+        try:
+            exit = world.wilderness.WildernessExit.objects.get(db_key=exit_name)
+        except:
+            string = "WildernessExit '{}' not found. Choose an existing exit "\
+                     "(which must be a WildernessExit.".format(exit_name)
+            string += ""
+            caller.msg(string)
+            return
+        # exit_name must refer to one in the world
+        # TODO: Test ambiguity and handle it, maybe by being in same room?
+        if not exit or not exit.location:
+            caller.msg(SEC_ERR_MSG)
+            return
+        # Check the coordinates are valid in this sector
+        if not sec.is_valid_coordinates(coords):
+            caller.msg(SEC_ERR_MSG)
+            return
 
-        # Check that this key refers to a Sector object
+        # Final check to see if this is a 're-link', so we erase the old link
+        oldcoords = exit.attributes.get("coords_destination")
+        if oldcoords:
+            exit.attributes.remove("coords_destination")
+            try:
+                del sec.db.externalrooms[oldcoords]
+            except AttributeError:
+                logger.log_err("Cmd-Llink: ERROR: No externalrooms att found on "
+                               "Sector {}".format(sec.key))
+            except:
+                logger.log_err("Cmd-Llink: ERROR: Failed to delete coords {}"
+                               "from {}.externalrooms".format(oldcoords, sec.key))
 
-        # Check that exit_name is a valid exit with a location
-
-        # Add 'here' to the Sector's db.externalrooms dict, associated to a list
-        #  of exits (of which this new exit is added)
-
-        # Set current SiteRoom's ndb.wildernessscript attribute to the sector
-
+        # Set up the site entrance in the sector dict
+        # If the Sector finds a room already associated with this Loc
+        # if coords in sec.db.externalrooms:
+        #     caller.msg(DUP_ERR_MSG)
+        #     return
+        # ! Don't change the order of these !
+        sec.db.externalrooms[coords] = [exit.location]
+        sec.db.externalrooms[coords].append(world.strings.DEF_SITEENTRANCE_NAME)
+        sec.db.externalrooms[coords].append(world.strings.DEF_SITEENTRANCE_DESC)
+        sec.db.externalrooms[coords].append(world.strings.DEF_SITEENTRANCE_GLYPH)
+        sec.db.externalrooms[coords].append(
+            world.strings.DEF_SITEENTRANCE_GLYPHCOLOR)
+        # sec.db.externalrooms[coords].append(exit)
+        # Set SiteRoom's ndb.wildernessscript attribute to the sector
+        exit.location.ndb.wildernessscript = sec
+        # This black magic gives the special WildernessRoom property to our SiteRoom
+        # this might not be persistent tho...
+        # exit.location.wilderness = types.MethodType(
+        #     world.wilderness.WildernessRoom.wilderness.im_func, exit.location)
         # Set the WildernessExit's db.coords_destination to the coordinates
+        exit.db.coords_destination = coords
+        caller.msg('Exit {} linked with coordinates {} in Sector {} on level {}.'.format(exit, coords, sec, level))
+
+        # TODO: Add the remove switch that searches for this room/exit in the previous coords sector in order to remove it
+
+        # TODO: change the at_start code for sectors to iterate through db.externalrooms and set ndb.wilderness for each one
+        # TODO: remove room and coords reference from sec.db.externalrooms when the linked exit is deleted

@@ -1,6 +1,8 @@
 # -*- coding: UTF-8 -*-
 """
-Sector Glyphs
+World Strings
+
+Contains constants for all the world-related strings
 
 The legend of map string glyphs and their Loc properties. Edit this file to
 change those of any map location.
@@ -12,7 +14,14 @@ Properties:
     pass: Whether this character is passable or impassable by objects
 
 """
-glyph_legend = {
+PLAYER_GLYPH = '(@)'
+DEF_SITEENTRANCE_NAME = 'Entrance'
+DEF_SITEENTRANCE_DESC = 'Through the fog you realize there is a pit here ' \
+                        'where you can enter deeper into the earth. Where ' \
+                        'does it lead?'
+DEF_SITEENTRANCE_GLYPH = '|550[|555*|550]'
+DEF_SITEENTRANCE_GLYPHCOLOR = '|555'
+GLYPH_LEGEND = {
     "F": {
         "name":"Superfungi Forest",
         "color":"|302",

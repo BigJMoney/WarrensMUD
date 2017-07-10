@@ -25,7 +25,8 @@ Implementation details:
 
 """
 import random
-import world.sector_glyphs
+import types
+import world.strings
 from evennia import logger, create_script
 from evennia.utils import evtable
 from typeclasses.scripts import Script
@@ -68,6 +69,13 @@ class Overworld(wilderness.WildernessScript):
     a new one during a world storm.
 
     """
+    def at_start(self):
+        try:
+            super(Overworld, self).at_start()
+        except AttributeError:
+            logger.log_info("OverworldStart: {} has an unset property".format(self.key))
+            pass
+
     def at_script_creation(self):
         """
         Associates each type of map glyph with properties (name, desc, etc)
@@ -78,8 +86,9 @@ class Overworld(wilderness.WildernessScript):
         one which would still be present in the db with all its sectors.
 
         """
+        self.persistent = True
         # The legend for loc names and descriptions, for each map glyph
-        self.db.glyph_legend = world.sector_glyphs.glyph_legend
+        self.db.glyph_legend = world.strings.GLYPH_LEGEND
         # The number of sectors per world level
         # TODO: Implement retrieval from settings.py
         map_config = {1: 100}
@@ -154,8 +163,10 @@ class Overworld(wilderness.WildernessScript):
         self.db.numsectors = self.db.numsectors + 1
         mapprovider = SectorMapProvider(secmap_str)
         script.db.mapprovider = mapprovider
+        # Holds references
+        script.db.externalrooms = {}
         logger.log_info("WorldStorm: PLACEHOLDER: Sector created")
-        return mapprovider
+        return script
 
     def caveinate_sectors(self, secmap, neighbormap):
         """
@@ -257,9 +268,16 @@ class Sector(wilderness.WildernessScript):
     """
     Just a name change wrapper for now, but may be used in the future.
     """
-    pass
-
-
+    def at_start(self):
+        super(Sector, self).at_start()
+        try:
+            for coordinates, props in self.db.externalrooms.items():
+                room = props[0]
+                room.ndb.wildernessscript = self
+                logger.log_info("SectorScriptStart: External room {} found in Sector {}".format(room.key, self.key))
+        except AttributeError:
+            logger.log_info("SectorScriptStart: Sector {} has no externalrooms".format(self.key))
+            pass
 class SectorMapProvider(wilderness.WildernessMapProvider):
     """
     Documentation on mapproviders can be found in evennia/contrib/wilderness.py
@@ -327,21 +345,23 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         gcoords = tuple(a + b for a, b in zip(coords, coords_offset))
         return gcoords
 
-    def find_glyph(self, gcoords, scan=False):
+    def find_glyph(self, coords, externalrooms=None, scan=False):
         """
         Find the character in self.map_str, given its coordinates
 
         Can optionally find the scan glyph, which is used for the minimap
 
         Args:
-            gcoords (tuple): Coordinates (in map_str/glyph translation)
+            coords (tuple): Coordinates (in-game)
+            loc (Loc): The Loc being prepared
             scan (boolean): Whether to return a "scan" glyph
         Returns:
             The glyph string
         """
         # Not saved on the SectorMapProvider because it needs to be loaded fresh
         # TODO: set self.legend in the script's start method so I don't have to call it everywhere!
-        legend = world.sector_glyphs.glyph_legend
+        legend = world.strings.GLYPH_LEGEND
+        gcoords = self.glyph_coordinates(coords)
         gx, gy = gcoords
         rows = self.map_str.split("\n")
 
@@ -364,6 +384,11 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
             glyph = '!'
 
         if scan:
+            #First check if this Loc is a Site entrance
+            if externalrooms:
+                if coords in externalrooms:
+                    # 4th item is the entrance glyph
+                    return externalrooms[coords][3]
             return legend[glyph]["scan"]
         return glyph
 
@@ -389,7 +414,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
             logger.log_err('Navigation: ERROR: invalid coordinates {} given to '
                            'SectorMapProvider'.format(coords))
             return False
-        glyph = self.find_glyph(gcoords)
+        glyph = self.find_glyph(coords)
         # Ensure the glyph was on the map
         if glyph == 'invalid':
             logger.log_err('Navigation: ERROR: invalid coordinates {} given to '
@@ -399,7 +424,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         # If the glyph is an external location, look it up
         # Return the location reference?
 
-        legend = world.sector_glyphs.glyph_legend
+        legend = world.strings.GLYPH_LEGEND
         # The characters that define impassable spaces (out of bounds)
         oob_glyphs = [gkey for gkey in legend if not legend[gkey]["pass"]]
         # Return True if it's a valid glyph
@@ -412,11 +437,11 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         Args:
             coords: coordinates of the loc
         """
-        legend = world.sector_glyphs.glyph_legend
-        gcoords = self.glyph_coordinates(coords)
-        glyph = self.find_glyph(gcoords)
+        legend = world.strings.GLYPH_LEGEND
+        glyph = self.find_glyph(coords)
         locprops = legend[glyph]
         # Regular Loc name
+        gcoords = self.glyph_coordinates(coords)
         if gcoords not in self.landmarks:
             name = '{}{}{}'.format(locprops["color"],
                                    locprops["name"], '|n')
@@ -435,14 +460,21 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
             caller: ???
             loc: Loc being moved into
         """
-        legend = world.sector_glyphs.glyph_legend
-        gcoords = self.glyph_coordinates(coords)
-        glyph = self.find_glyph(gcoords)
+        # Most Locs are not entrances to Site (external) Rooms
+        # Let's look in this Sector's externalrooms to be sure
+        is_entrance = False
+        externalrooms = loc.ndb.wildernessscript.db.externalrooms
+        if coords in externalrooms:
+            is_entrance = True
+        # Set our legend for normal Locs
+        legend = world.strings.GLYPH_LEGEND
+        # Set our MAP glyph for normal Locs
+        glyph = self.find_glyph(coords)
+        # Set a normal Loc's properties
         locprops = legend[glyph]
+        gcoords = self.glyph_coordinates(coords)
         # Regular Loc properties
         if gcoords not in self.landmarks:
-            # Set Loc name
-            # loc.db.name = locprops["name"]
             # Set Loc desc
             desc_string = '\n{}{}{}'.format('|045', locprops["desc"], '|n')
         # Loc with a Landmark description
@@ -463,21 +495,23 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         # 1. Readout
         rstring = "ENVIRONMENT\n"
         rstring += "Loc: {}\n".format(self.get_location_name(coords))
-        rstring += "Terrain: {}{}{}\n".format(legend[self.find_glyph(gcoords)]["color"],
-                                              self.find_glyph(gcoords, scan=True),
+        rstring += "Terrain: {}{}{}\n".format(legend[self.find_glyph(coords)]["color"],
+                                              self.find_glyph(coords, scan=True),
                                               '|n')
-        rstring += "Sector: {}".format(loc.wilderness.key)
+        rstring += "Sector: {}".format(loc.ndb.wildernessscript.key)
 
-        def scan_glyphs(slf, gc, sgrid):
+        def scan_glyphs(slf, cds, sgrid):
             # Adds sgrid offsets to gcs (coordinates) and returns minimap glyphs
             # including colorcodes
+            gc = self.glyph_coordinates(cds)
             elements = []
+            # For each scanner x,y
             for offset in sgrid:
-                ngc = tuple(x + y for x, y in zip(gc, offset))
-                # Get the offset gluph's color
-                e = legend[slf.find_glyph(ngc)]["color"]
-                # Get it's minimap glyph
-                e += slf.find_glyph(ngc, scan=True)
+                ncds = tuple(x + y for x, y in zip(cds, offset))
+                # Get the offset glyph's color
+                e = legend[slf.find_glyph(ncds)]["color"]
+                # Get its minimap glyph
+                e += slf.find_glyph(ncds, externalrooms, scan=True)
                 # Close the color code
                 e += '|n'
                 elements.append(e)
@@ -513,13 +547,13 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
                      (-1, 0),  (0, 0),  (1, 0),
                      (-1, -1), (0, -1), (1, -1))
         recruit_glyph = '|555{|550@|555}|n'
-        scan_string = '╓──────║scanX║──────╖\n'
+        scan_string = '╓──────║scanY║──────╖\n'
         scan_string += '║                   ║\n'
-        scan_string += '─────  {} {} {}  ─────\n'.format(*(scan_glyphs(self, gcoords, scan_grid[0:3])))
-        scan_string += 'scanY  {2} {0} {4}   {1} \n'.format(recruit_glyph, ystring, *(scan_glyphs(self, gcoords, scan_grid[3:6])))
-        scan_string += '─────  {} {} {}  ─────\n'.format(*(scan_glyphs(self, gcoords, scan_grid[6:9])))
+        scan_string += '─────  {} {} {}  ─────\n'.format(*(scan_glyphs(self, coords, scan_grid[0:3])))
+        scan_string += 'scanX  {2} {0} {4}   {1} \n'.format(recruit_glyph, xstring, *(scan_glyphs(self, coords, scan_grid[3:6])))
+        scan_string += '─────  {} {} {}  ─────\n'.format(*(scan_glyphs(self, coords, scan_grid[6:9])))
         scan_string += '║                   ║\n'
-        scan_string += '╙──────║ %s ║──────╜' % xstring
+        scan_string += '╙──────║ %s ║──────╜' % ystring
 
         # 3. Vitals
         # ne day this will reference real health :)
