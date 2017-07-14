@@ -661,6 +661,8 @@ class WildernessExit(DefaultExit):
         if coords:
             try:
                 del self.wilderness.mapprovider.externalrooms[coords]
+                # Make the attribute persistent
+                self.wilderness.db.mapprovider = self.wilderness.mapprovider
             except AttributeError:
                 logger.log_err("WildernessExit-Deletion: ERROR: Failed to find "
                                "externalrooms coords using exit {} [{}]"

@@ -289,13 +289,6 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
 
     See the functions below for this class's extensions
     """
-
-    # Associates this hex's sides (ints) with a ref to the neighbor sector
-    # Shit, I think this is invalid in Evennia... non db objects cannot
-    # store db objects and expect them to be saved
-    # I might need to save this as an attribute on the Sector itself
-    # Or I could have this associated with the Sector key instead of ref
-    neighbors = {}
     # Coordinates of landmarks associated with their properties
     # Eventually this will be created programmatically
     # Or, if mannually, I'l move this over to strings.py
@@ -329,6 +322,14 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
             map_str: This sector's map string
         """
         self.map_str = map_str
+        # Associates this hex's sides (ints) with a ref to the neighbor sector
+        # Shit, I think this is invalid in Evennia... non db objects cannot
+        # store db objects and expect them to be saved
+        # I might need to save this as an attribute on the Sector itself
+        # Or I could have this associated with the Sector key instead of ref
+        self.neighbors = {}
+        # Keeps track of Site exits leading into this Sector
+        self.externalrooms = {}
         # Copy comment from Sector
 
     @staticmethod

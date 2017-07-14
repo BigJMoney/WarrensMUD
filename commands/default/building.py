@@ -185,8 +185,9 @@ class CmdLocLink(building.ObjManipCommand):
         coords = loc_x, loc_y
 
         SEC_ERR_MSG = 'Sector must be a tuple in the form of two numbers like ' \
-                      '"(1, 20)" and must referece a level and sector that ' \
-                      'exist in the world.'
+                      '"(1, 20)", must referece a level and sector that ' \
+                      'exist in the world, and must not lead to impassable ' \
+                      'terrain. Whew!'
         DUP_ERR_MSG = 'Loc {} already associated with another exit. Destroy ' \
                       'that exit before proceeding'.format(coords)
 
@@ -212,8 +213,9 @@ class CmdLocLink(building.ObjManipCommand):
         try:
             exit = world.wilderness.WildernessExit.objects.get(db_key=exit_name)
         except:
-            string = "WildernessExit '{}' not found. Choose an existing exit "\
-                     "(which must be a WildernessExit.".format(exit_name)
+            string = "SectorExit '{}' not found. Choose an existing " \
+                     "SectorExit (one created with @lopen; not a SiteExit)." \
+                     "".format(exit_name)
             string += ""
             caller.msg(string)
             return
