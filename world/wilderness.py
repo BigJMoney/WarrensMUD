@@ -398,7 +398,7 @@ class WildernessRoom(typeclasses.rooms.Room):
             moved_obj (Object): The object moved into this one.
             source_location (Object): Where `moved_obj` came from.
         """
-        if moved_obj.destination and moved_obj.destination == moved_obj.location:
+        if type(moved_obj) == WildernessExit:
             # Ignore exits looping back to themselves: those are the regular
             # n, ne, ... exits.
             return
@@ -630,7 +630,9 @@ class WildernessExit(DefaultExit):
         # Also not sure why this isn't performed in move_obj so that it better
         # mirrors that code flow
         traversing_object.location.msg_contents("{} leaves to {}".format(
-            traversing_object.key, self.wilderness.mapprovider.get_location_name(new_coordinates), exclude=[traversing_object]))
+            traversing_object.key,
+            self.wilderness.mapprovider.get_location_name(new_coordinates),
+            exclude=[traversing_object]))
 
         # Don't reference the room's shortcut here because it might be a normal Room
         self.location.ndb.wildernessscript.move_obj(traversing_object, new_coordinates)
@@ -658,7 +660,7 @@ class WildernessExit(DefaultExit):
         coords = self.attributes.get("coords_destination")
         if coords:
             try:
-                del self.wilderness.db.externalrooms[coords]
+                del self.wilderness.mapprovider.externalrooms[coords]
             except AttributeError:
                 logger.log_err("WildernessExit-Deletion: ERROR: Failed to find "
                                "externalrooms coords using exit {} [{}]"

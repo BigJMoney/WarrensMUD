@@ -6,7 +6,7 @@ import evennia
 import world.strings
 import world.wilderness
 from evennia.commands.default import building
-from evennia import logger
+from evennia import logger, search_object
 from server.conf import settings
 from evennia.utils import create
 
@@ -38,7 +38,8 @@ class CmdLocOpen(building.ObjManipCommand):
         # check if this exit object already exists at the location.
         # we need to ignore errors (so no automatic feedback)since we
         # have to know the result of the search to decide what to do.
-        exit_obj = caller.search(exit_name, location=location, quiet=True, exact=True)
+        exit_obj = caller.search(exit_name, location=location, quiet=True,
+                                 exact=True)
         if len(exit_obj) > 1:
             # give error message and return
             caller.search(exit_name, location=location, exact=True)
@@ -47,8 +48,10 @@ class CmdLocOpen(building.ObjManipCommand):
             exit_obj = exit_obj[0]
             if not exit_obj.destination:
                 # we are trying to link a non-exit
-                string = "'%s' already exists and is not an exit!\nIf you want to convert it "
-                string += "to an exit, you must assign an object to the 'destination' property first."
+                string = "'%s' already exists and is not an exit!\nIf you want " \
+                         "to convert it "
+                string += "to an exit, you must assign an object to the " \
+                          "'destination' property first."
                 caller.msg(string % exit_name)
                 return None
             # we are re-linking an old exit.
@@ -60,7 +63,8 @@ class CmdLocOpen(building.ObjManipCommand):
                     exit_obj.destination = destination
                     if exit_aliases:
                         [exit_obj.aliases.add(alias) for alias in exit_aliases]
-                    string += " Rerouted its old destination '%s' to '%s' and changed aliases." % \
+                    string += " Rerouted its old destination '%s' to '%s' and " \
+                              "changed aliases." % \
                         (old_destination.name, destination.name)
                 else:
                     string += " It already points to the correct place."
@@ -96,7 +100,8 @@ class CmdLocOpen(building.ObjManipCommand):
         caller = self.caller
 
         if not self.args or not self.rhs:
-            string = "Usage: @open <new exit>[;alias...][:typeclass][,<return exit>[;alias..][:typeclass]]] "
+            string = "Usage: @open <new exit>[;alias...][:typeclass]" \
+                     "[,<return exit>[;alias..][:typeclass]]] "
             string += "= <destination>"
             caller.msg(string)
             return
@@ -140,7 +145,7 @@ class CmdLocOpen(building.ObjManipCommand):
                              back_exit_typeclass)
 
 
-class CmdLoclink(building.ObjManipCommand):
+class CmdLocLink(building.ObjManipCommand):
     """
     link an exit to a sector loc
 
@@ -165,7 +170,6 @@ class CmdLoclink(building.ObjManipCommand):
         """
         Runs the command
         """
-
         caller = self.caller
         if not self.args or not self.rhs:
             string = "Usage: @loclink <level>:<sector>, <loc_x>:<loc_y> = <exit>"
@@ -238,24 +242,16 @@ class CmdLoclink(building.ObjManipCommand):
 
         # Set up the site entrance in the sector dict
         # If the Sector finds a room already associated with this Loc
-        # if coords in sec.db.externalrooms:
-        #     caller.msg(DUP_ERR_MSG)
-        #     return
+        if coords in sec.db.externalrooms:
+            caller.msg(DUP_ERR_MSG)
+            return
         # ! Don't change the order of these !
-        sec.db.externalrooms[coords] = [exit.location]
-        sec.db.externalrooms[coords].append(world.strings.DEF_SITEENTRANCE_NAME)
-        sec.db.externalrooms[coords].append(world.strings.DEF_SITEENTRANCE_DESC)
-        sec.db.externalrooms[coords].append(world.strings.DEF_SITEENTRANCE_GLYPH)
-        sec.db.externalrooms[coords].append(
-            world.strings.DEF_SITEENTRANCE_GLYPHCOLOR)
-        # sec.db.externalrooms[coords].append(exit)
-        # Set SiteRoom's ndb.wildernessscript attribute to the sector
+        sec.mapprovider.externalrooms[coords] = [exit.location.dbref]
+        sec.mapprovider.externalrooms[coords].append(world.strings.DEF_SITEENTRANCE_NAME)
+        sec.mapprovider.externalrooms[coords].append(world.strings.DEF_SITEENTRANCE_DESC)
+        sec.mapprovider.externalrooms[coords].append(world.strings.DEF_SITEENTRANCE_GLYPH)
+        sec.db.mapprovider = sec.mapprovider  # Make the attribute persistent
         exit.location.ndb.wildernessscript = sec
-        # This black magic gives the special WildernessRoom property to our SiteRoom
-        # this might not be persistent tho...
-        # exit.location.wilderness = types.MethodType(
-        #     world.wilderness.WildernessRoom.wilderness.im_func, exit.location)
-        # Set the WildernessExit's db.coords_destination to the coordinates
         exit.db.coords_destination = coords
         caller.msg('Exit {} linked with coordinates {} in Sector {} on level {}.'.format(exit, coords, sec, level))
 
@@ -263,3 +259,183 @@ class CmdLoclink(building.ObjManipCommand):
 
         # TODO: change the at_start code for sectors to iterate through db.externalrooms and set ndb.wilderness for each one
         # TODO: remove room and coords reference from sec.db.externalrooms when the linked exit is deleted
+
+
+class CmdLocDesc(building.ObjManipCommand):
+    """
+    describe aa Loc that has an external Site entrance
+
+    Usage:
+      @ldesc <level>:<sector>, <loc_x>:<loc_y> = <description>
+
+    Switches:
+      ???? - ???
+
+    Sets the "desc" attribute on a Loc with the given coordinates. The Loc
+    must already be linked from an exit in a Site (see help @llink).
+    """
+    key = "@locdesc"
+    aliases = ["@locdescribe", "@ldescribe", "@ldesc"]
+    locks = "cmd:perm(desc) or perm(Builders)"
+    help_category = "Building"
+
+    # def edit_handler(self):
+    #     if self.rhs:
+    #         self.msg("|rYou may specify a value, or use the edit switch, "
+    #                  "but not both.|n")
+    #         return
+    #     if self.args:
+    #         obj = self.caller.search(self.args)
+    #     else:
+    #         obj = self.caller.location or self.msg("|rYou can't describe oblivion.|n")
+    #     if not obj:
+    #         return
+#
+    #     self.caller.db.evmenu_target = obj
+    #     # launch the editor
+    #     EvEditor(self.caller, loadfunc=_desc_load, savefunc=_desc_save,
+    #              quitfunc=_desc_quit, key="desc", persistent=True)
+    #     return
+
+    def func(self):
+        "Define command"
+
+        caller = self.caller
+        if not self.args or not self.rhs:
+            string = "Usage: @locdesc <level>:<sector>, <loc_x>:<loc_y> = " \
+                     "<description>"
+            string += ""
+            caller.msg(string)
+            return
+
+        #if 'edit' in self.switches:
+        #    self.edit_handler()
+        #    return
+
+        level = int(self.lhs_objs[0]['name'])
+        secnum = self.lhs_objs[0]['option']
+        loc_x = int(self.lhs_objs[1]['name'])
+        loc_y = int(self.lhs_objs[1]['option'])
+        desc = self.rhs
+        coords = loc_x, loc_y
+
+        SEC_ERR_MSG = 'Sector must be a tuple in the form of two numbers like ' \
+                      '"1:20" and must referece a level and sector that ' \
+                      'exist in the world.'
+        LOC_ERR_MSG = 'Coordinates must refer to a Loc that is linked to an ' \
+                      'external Site via an exit (see help @llink).'
+
+        # All parameters mandatory
+        if not level or not secnum or loc_x is None or loc_y is None \
+                or not desc:
+            string = "Usage: @locdesc <level>:<sector>, <loc_x>:<loc_y> = " \
+                     "<description>"
+            string += ""
+            caller.msg(string)
+            return
+        worldmap = evennia.search_script('overworld')[0].db.worldmap
+        # Level must be in the world
+        if level not in worldmap:
+            caller.msg(SEC_ERR_MSG)
+            return
+        # secnum must refer to a sector that is on this particular level
+        # sec = evennia.search_script(secnum)[0]
+        sec = world.overworld.Sector.objects.get(db_key=secnum)
+        if not sec or sec not in list(worldmap[level].values()):
+            caller.msg(SEC_ERR_MSG)
+            return
+        # Check the coordinates are valid in this sector
+        if not sec.is_valid_coordinates(coords):
+            caller.msg(SEC_ERR_MSG)
+            return
+        #Coordinates must refer to a loc linked to externalrooms
+        if coords not in sec.mapprovider.externalrooms:
+            caller.msg(LOC_ERR_MSG)
+            return
+        props = sec.mapprovider.externalrooms[coords]
+        room = search_object(props[0])[0]
+        if room.access(caller, "edit"):
+            sec.mapprovider.externalrooms[coords][2] = desc
+            sec.db.mapprovider = sec.mapprovider  # Make the attribute persistent
+            caller.msg(
+                "The entrance description was set on Loc {}.".format(coords))
+        else:
+            caller.msg("You don't have permission to edit the Site properties "
+                       "of %s." % room.key)
+
+
+class CmdLocName(building.ObjManipCommand):
+    """
+    Name a Loc that has an external Site entrance
+
+    Usage:
+      @lname <level>:<sector>, <loc_x>:<loc_y> = <name>
+
+    Sets the "name" attribute on a Loc with the given coordinates. The Loc
+    must already be linked from an exit in a Site (see help @llink).
+    """
+    key = "@locname"
+    aliases = "@lname"
+    locks = "cmd:perm(desc) or perm(Builders)"
+    help_category = "Building"
+
+    def func(self):
+        "Define command"
+        caller = self.caller
+        if not self.args or not self.rhs:
+            string = "Usage: @locname <level>:<sector>, <loc_x>:<loc_y> = " \
+                     "<name>"
+            string += ""
+            caller.msg(string)
+            return
+
+        level = int(self.lhs_objs[0]['name'])
+        secnum = self.lhs_objs[0]['option']
+        loc_x = int(self.lhs_objs[1]['name'])
+        loc_y = int(self.lhs_objs[1]['option'])
+        name = self.rhs
+        coords = loc_x, loc_y
+
+        SEC_ERR_MSG = 'Sector must be a tuple in the form of two numbers like ' \
+                      '"1:20" and must referece a level and sector that ' \
+                      'exist in the world.'
+        LOC_ERR_MSG = 'Coordinates must refer to a Loc that is linked to an ' \
+                      'external Site via an exit (see help @llink).'
+
+        # All parameters mandatory
+        if not level or not secnum or loc_x is None or loc_y is None \
+                or not name:
+            string = "Usage: @locname <level>:<sector>, <loc_x>:<loc_y> = " \
+                     "<name>"
+            string += ""
+            caller.msg(string)
+            return
+        worldmap = evennia.search_script('overworld')[0].db.worldmap
+        # Level must be in the world
+        if level not in worldmap:
+            caller.msg(SEC_ERR_MSG)
+            return
+        # secnum must refer to a sector that is on this particular level
+        # sec = evennia.search_script(secnum)[0]
+        sec = world.overworld.Sector.objects.get(db_key=secnum)
+        if not sec or sec not in list(worldmap[level].values()):
+            caller.msg(SEC_ERR_MSG)
+            return
+        # Check the coordinates are valid in this sector
+        if not sec.is_valid_coordinates(coords):
+            caller.msg(SEC_ERR_MSG)
+            return
+        #Coordinates must refer to a loc linked to externalrooms
+        if coords not in sec.mapprovider.externalrooms:
+            caller.msg(LOC_ERR_MSG)
+            return
+        props = sec.mapprovider.externalrooms[coords]
+        room = search_object(props[0])[0]
+        if room.access(caller, "edit"):
+            sec.mapprovider.externalrooms[coords][1] = name
+            sec.db.mapprovider = sec.mapprovider  # Make the attribute persistent
+            caller.msg(
+                "The entrance name was set on Loc {}.".format(coords))
+        else:
+           caller.msg("You don't have permission to edit the Site properties "
+                      "of %s." % room.key)

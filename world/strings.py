@@ -20,7 +20,7 @@ DEF_SITEENTRANCE_DESC = 'Through the fog you realize there is a pit here ' \
                         'where you can enter deeper into the earth. Where ' \
                         'does it lead?'
 DEF_SITEENTRANCE_GLYPH = '|550[|555*|550]'
-DEF_SITEENTRANCE_GLYPHCOLOR = '|555'
+#DEF_SITEENTRANCE_GLYPHCOLOR = '|555'
 GLYPH_LEGEND = {
     "F": {
         "name":"Superfungi Forest",

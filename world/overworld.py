@@ -27,9 +27,10 @@ Implementation details:
 import random
 import types
 import world.strings
-from evennia import logger, create_script
+from evennia import logger, create_script, search_object
 from evennia.utils import evtable
 from typeclasses.scripts import Script
+from typeclasses.rooms import Room
 import wilderness
 
 
@@ -163,7 +164,7 @@ class Overworld(wilderness.WildernessScript):
         self.db.numsectors = self.db.numsectors + 1
         mapprovider = SectorMapProvider(secmap_str)
         script.db.mapprovider = mapprovider
-        # Holds references
+        # Holds references to externally connected Site Rooms (outside Sectors)
         script.db.externalrooms = {}
         logger.log_info("WorldStorm: PLACEHOLDER: Sector created")
         return script
@@ -271,8 +272,12 @@ class Sector(wilderness.WildernessScript):
     def at_start(self):
         super(Sector, self).at_start()
         try:
-            for coordinates, props in self.db.externalrooms.items():
-                room = props[0]
+            # Every Loc with an external Site entrance references the Room
+            # it connects to. Set the wildernessscript ndb for all of them
+            # so their exits lead to their resepctive Loc's
+            for coordinates, props in self.mapprovider.externalrooms.items():
+                #room = Room.objects.get(db_key=props[0])
+                room = search_object(props[0])[0]
                 room.ndb.wildernessscript = self
                 logger.log_info("SectorScriptStart: External room {} found in Sector {}".format(room.key, self.key))
         except AttributeError:
@@ -293,6 +298,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
     neighbors = {}
     # Coordinates of landmarks associated with their properties
     # Eventually this will be created programmatically
+    # Or, if mannually, I'l move this over to strings.py
     landmarks = {
         (37, 26): {
             'name': 'High Hill',
@@ -323,7 +329,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
             map_str: This sector's map string
         """
         self.map_str = map_str
-        # Legend of glyphs (dict)
+        # Copy comment from Sector
 
     @staticmethod
     def glyph_coordinates(coords):
@@ -440,15 +446,19 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         legend = world.strings.GLYPH_LEGEND
         glyph = self.find_glyph(coords)
         locprops = legend[glyph]
-        # Regular Loc name
         gcoords = self.glyph_coordinates(coords)
-        if gcoords not in self.landmarks:
+        # Loc with an external site entrance
+        if coords in self.externalrooms:
             name = '{}{}{}'.format(locprops["color"],
-                                   locprops["name"], '|n')
+                                   self.externalrooms[coords][1], '|n')
         # Loc with a Landmark name
-        else:
+        elif gcoords in self.landmarks:
             name = '{}{}{}'.format(locprops["color"],
                                    self.landmarks[gcoords]["name"], '|n')
+        # Regular Loc name
+        else:
+            name = '{}{}{}'.format(locprops["color"],
+                                   locprops["name"], '|n')
         return name
 
     def at_prepare_room(self, coords, caller, loc):
@@ -460,12 +470,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
             caller: ???
             loc: Loc being moved into
         """
-        # Most Locs are not entrances to Site (external) Rooms
-        # Let's look in this Sector's externalrooms to be sure
-        is_entrance = False
-        externalrooms = loc.ndb.wildernessscript.db.externalrooms
-        if coords in externalrooms:
-            is_entrance = True
+        externalrooms = loc.ndb.wildernessscript.mapprovider.externalrooms
         # Set our legend for normal Locs
         legend = world.strings.GLYPH_LEGEND
         # Set our MAP glyph for normal Locs
@@ -473,14 +478,17 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         # Set a normal Loc's properties
         locprops = legend[glyph]
         gcoords = self.glyph_coordinates(coords)
-        # Regular Loc properties
-        if gcoords not in self.landmarks:
-            # Set Loc desc
-            desc_string = '\n{}{}{}'.format('|045', locprops["desc"], '|n')
+        # Loc with a special entrance to external Site
+        if coords in externalrooms:
+            desc_string = '\n|555' + externalrooms[coords][2] + '|n'
         # Loc with a Landmark description
-        else:
+        elif gcoords in self.landmarks:
             # loc.db.name = self.landmarks[gcoords]["name"]
             desc_string = '\n|555' + self.landmarks[gcoords]["desc"] + '|n'
+        # Regular Loc properties
+        else:
+            # Set Loc desc
+            desc_string = '\n{}{}{}'.format('|045', locprops["desc"], '|n')
         guide_string1 = '|045\n  ╓\n  ║\n  ║\n  ║\n  ╙\n|n'
         loc.db.desc = evtable.EvTable(guide_string1, desc_string,
                                       align="l", valign="t", height=6,
