@@ -146,6 +146,11 @@ class WildernessScript(DefaultScript):
             room.ndb.wildernessscript = self
             room.ndb.active_coordinates = coordinates
         for item in self.db.itemcoordinates.keys():
+            # Items deleted from the wilderness leave None type 'ghosts'
+            # that must be cleaned out
+            if item == None:
+                del self.db.itemcoordinates[item]
+                continue
             item.ndb.wilderness = self
 
 
@@ -192,6 +197,11 @@ class WildernessScript(DefaultScript):
         """
         result = []
         for item, item_coordinates in self.itemcoordinates.items():
+            # Items deleted from the wilderness leave None type 'ghosts'
+            # that must be cleaned out
+            if item == None:
+                del self.db.itemcoordinates[item]
+                continue
             if coordinates == item_coordinates:
                 result.append(item)
         return result

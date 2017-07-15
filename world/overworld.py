@@ -207,6 +207,8 @@ class Overworld(wilderness.WildernessScript):
         """
         # TODO: Function to broadcast the storm and bar cross-sector travel
         # I think I want it to last 5 minutes
+        # TODO: world storm must disconnect all external exits
+        # then reconnect them to the new appropriate coordinates after the storm
 
         # Map of coordinates:neighbor_sides
         neighbormap = {}

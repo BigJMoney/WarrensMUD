@@ -188,8 +188,6 @@ class CmdLocLink(building.ObjManipCommand):
                       '"(1, 20)", must referece a level and sector that ' \
                       'exist in the world, and must not lead to impassable ' \
                       'terrain. Whew!'
-        DUP_ERR_MSG = 'Loc {} already associated with another exit. Destroy ' \
-                      'that exit before proceeding'.format(coords)
 
         # All parameters mandatory
         if not level or not secnum or loc_x is None or loc_y is None\
@@ -210,15 +208,26 @@ class CmdLocLink(building.ObjManipCommand):
         if not sec or sec not in list(worldmap[level].values()):
             caller.msg(SEC_ERR_MSG)
             return
-        try:
-            exit = world.wilderness.WildernessExit.objects.get(db_key=exit_name)
-        except:
-            string = "SectorExit '{}' not found. Choose an existing " \
-                     "SectorExit (one created with @lopen; not a SiteExit)." \
-                     "".format(exit_name)
-            string += ""
-            caller.msg(string)
-            return
+        # First search locally
+        exit = caller.search(exit_name)
+        if not exit:
+            # Then search globally
+            try:
+                exit = world.wilderness.WildernessExit.objects.get(db_key=exit_name)
+            except world.wilderness.WildernessExit.MultipleObjectsReturned:
+                string = "\nMultiple '{}' SectorExits. You may use a db_ref " \
+                         "instead of a name." \
+                         "".format(exit_name)
+                string += ""
+                caller.msg(string)
+                return
+            except:
+                string = "SectorExit '{}' not found. Choose an existing " \
+                         "SectorExit (one created with @lopen; not a SiteExit)." \
+                         "".format(exit_name)
+                string += ""
+                caller.msg(string)
+                return
         # exit_name must refer to one in the world
         # TODO: Test ambiguity and handle it, maybe by being in same room?
         if not exit or not exit.location:
@@ -229,33 +238,51 @@ class CmdLocLink(building.ObjManipCommand):
             caller.msg(SEC_ERR_MSG)
             return
 
+        # Set up the site entrance in the sector dict
+        # If the Sector finds a room already associated with this Loc
+        if coords in sec.mapprovider.externalrooms:
+            caller.msg('Loc {} already associated with exit {}. Destroy ' \
+                      'that exit before proceeding'
+                       ''.format(coords, sec.mapprovider.externalrooms[coords][4]))
+            return
         # Final check to see if this is a 're-link', so we erase the old link
+        relink = False
         oldcoords = exit.attributes.get("coords_destination")
         if oldcoords:
             exit.attributes.remove("coords_destination")
             try:
-                del sec.db.externalrooms[oldcoords]
+                mapprovider = sec.mapprovider
+                del mapprovider.externalrooms[oldcoords]
+                sec.db.mapprovider = mapprovider
+            # I don't remember why I have these...
             except AttributeError:
                 logger.log_err("Cmd-Llink: ERROR: No externalrooms att found on "
                                "Sector {}".format(sec.key))
             except:
                 logger.log_err("Cmd-Llink: ERROR: Failed to delete coords {}"
                                "from {}.externalrooms".format(oldcoords, sec.key))
+            else:
+                relink = True
 
-        # Set up the site entrance in the sector dict
-        # If the Sector finds a room already associated with this Loc
-        if coords in sec.db.externalrooms:
-            caller.msg(DUP_ERR_MSG)
-            return
         # ! Don't change the order of these !
-        sec.mapprovider.externalrooms[coords] = [exit.location.dbref]
-        sec.mapprovider.externalrooms[coords].append(world.strings.DEF_SITEENTRANCE_NAME)
-        sec.mapprovider.externalrooms[coords].append(world.strings.DEF_SITEENTRANCE_DESC)
-        sec.mapprovider.externalrooms[coords].append(world.strings.DEF_SITEENTRANCE_GLYPH)
+        sec.mapprovider.externalrooms[coords] = \
+            [exit.location.dbref]
+        sec.mapprovider.externalrooms[coords].append(
+            world.strings.DEF_SITEENTRANCE_NAME)
+        sec.mapprovider.externalrooms[coords].append(
+            world.strings.DEF_SITEENTRANCE_DESC)
+        sec.mapprovider.externalrooms[coords].append(
+            world.strings.DEF_SITEENTRANCE_GLYPH)
+        sec.mapprovider.externalrooms[coords].append(
+            exit.dbref)
         sec.db.mapprovider = sec.mapprovider  # Make the attribute persistent
         exit.location.ndb.wildernessscript = sec
         exit.db.coords_destination = coords
-        caller.msg('Exit {} linked with coordinates {} in Sector {} on level {}.'.format(exit, coords, sec, level))
+        string = 'Exit {} linked with coordinates {} in Sector {} on level {}.' \
+                 ''.format(exit, coords, sec, level)
+        if relink:
+            string +='\nRemember to delete the old return exit if there is one.'
+        caller.msg(string)
 
         # TODO: Add the remove switch that searches for this room/exit in the previous coords sector in order to remove it
 
