@@ -1,0 +1,35 @@
+#
+# This cretes the developer test world
+#
+
+# Create the Overworld
+@py from world import overworld; overworld.create_overworld()
+
+# Describe Limbo state
+@desc here = Your soul tarries...
+Something has gone wrong.
+Your time has not yet come.fa
+
+# Dig our way to the Barracks
+@dig/tel Barracks = Return
+
+# And describe it
+@desc here = The smells of sweat, ammonia and electrical components assault your nostrils. Beneath a thin coating of grime lies everything that comprises the Barracks, including yourself and its other occupants. But it's a roof over your head and a barrier against the Wasteland's various toxins.
+
+# Create the WildernessExit
+@open out;o:world.wilderness.WildernessExit = #3
+
+# Link it to Sector 1
+@llink 1:1, 0:0 = out
+
+# Step outside
+out
+
+# Give it a name
+@lname 1:1, 0:0 = The Barracks
+
+# And a description
+@ldesc 1:1, 0:0 = A burnt, ever corroding pile of scrap and determination looms before you. You have access to |055enter|555 your home-sweet-home at any time, recruit.
+
+# Make a way back in
+@open Enter;en;in = #3

@@ -108,7 +108,7 @@ GLYPH_LEGEND = {
     "s": {
         "name": "Shallows",
         "color": "|240|[012",
-        "desc": "You slosh for miles through irradiated wetland, trying  your "
+        "desc": "You slosh for miles through irradiated wetland, trying your "
                 "best to ignore the stench, or at least not pass out from it",
         "scan": "~~~",
         "pass": True

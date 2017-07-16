@@ -539,7 +539,7 @@ class Loc(WildernessRoom):
         Args:
             looker (Object): Object doing the looking.
         """
-        return '\n'
+        return '\n|044Roaming The Wild Wastes|n\n\n'
 
     def ra_exits(self, exits):
         """
