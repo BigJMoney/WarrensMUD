@@ -37,7 +37,7 @@ Implementation details:
 import random
 import world.strings
 from evennia import logger, create_script, search_object
-from evennia.utils import evtable
+from evennia import EvTable
 from typeclasses.scripts import Script
 import wilderness
 
@@ -132,7 +132,6 @@ class Overworld(Script):
         for num in range(size):
             placeholder['ph_coord' + str(num)] = (1, 2, 3)
         return placeholder
-        pass
 
     def create_sector(self):
         """
@@ -281,7 +280,6 @@ class Sector(wilderness.WildernessScript):
         except AttributeError:
             logger.log_info("SectorScriptStart: "
                             "Sector {} has no externalrooms".format(self.key))
-            pass
 
 
 class SectorMapProvider(wilderness.WildernessMapProvider):
@@ -503,7 +501,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
             # Set Loc desc
             desc_string = '\n{}{}{}'.format('|045', locprops["desc"], '|n')
         guide_string1 = '|045\n  ╓\n  ║\n  ║\n  ║\n  ╙\n|n'
-        loc.db.desc = evtable.EvTable(guide_string1, desc_string,
+        loc.db.desc = EvTable.EvTable(guide_string1, desc_string,
                                       align="l", valign="t", height=6,
                                       border=None)
         loc.db.desc.reformat_column(0, width=5)
@@ -601,7 +599,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         vstring += "|511{}▾|n\n".format('♥ ' * health_disp)
         vstring += "|550{} ⤈|n".format(str(bauble_disp))
 
-        loc.db.hud = evtable.EvTable(scan_string, rstring, vstring, valign='t',
+        loc.db.hud = EvTable.EvTable(scan_string, rstring, vstring, valign='t',
                                      border=None)
         loc.db.hud.reformat_column(0, align='c', width=29)
         loc.db.hud.reformat_column(1, width=32)
