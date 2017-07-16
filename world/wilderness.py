@@ -141,7 +141,7 @@ class WildernessScript(DefaultScript):
         """
         Called when the script is started and also after server reloads.
         """
-        # Bug here upon world creation and reloading server
+
         for coordinates, room in self.db.rooms.items():
             room.ndb.wildernessscript = self
             room.ndb.active_coordinates = coordinates
@@ -366,12 +366,14 @@ class WildernessRoom(typeclasses.rooms.Room):
     room itself changes to display another area of the wilderness.
     """
 
-    # Had to comment this out for my hacky way of making wilderness links work
+    ##########################################################################
+    # Commented out to make my intrawilderness links work
+    #
     # @property
     # def wilderness(self):
     #     """
     #     Shortcut property to the wilderness script this room belongs to.
-#
+    #
     #     Returns:
     #         WildernessScript: the WildernessScript attached to this room
     #     """
@@ -408,7 +410,7 @@ class WildernessRoom(typeclasses.rooms.Room):
             moved_obj (Object): The object moved into this one.
             source_location (Object): Where `moved_obj` came from.
         """
-        if type(moved_obj) == WildernessExit:
+        if isinstance(moved_obj, WildernessExit):
             # Ignore exits looping back to themselves: those are the regular
             # n, ne, ... exits.
             return
@@ -483,7 +485,7 @@ class WildernessRoom(typeclasses.rooms.Room):
             if check_res:
                 # If the check returned True, unlock the exit
                 exit.locks.add("traverse:true();view:true()")
-                # If it returned an Room, it's a Room entrance
+                # If it returned a Room, it's a Room entrance
                 # TODO: change to new SiteRoom class
                 if type(check_res) == typeclasses.rooms.Room:
 
@@ -527,8 +529,7 @@ class WildernessRoom(typeclasses.rooms.Room):
 
 class Loc(WildernessRoom):
     """
-    A WarrensMUD override to extend functionality
-
+    A WarrensRPG override to extend functionality
     """
     def ra_name(self, looker):
         """
@@ -638,7 +639,7 @@ class WildernessExit(DefaultExit):
         # Not sure I'm happy with how the module does this compared to
         # traversing_object.announce_move_from(), announce_move_to()
         # Also not sure why this isn't performed in move_obj so that it better
-        # mirrors that code flow
+        # mirrors that code flow?
         traversing_object.location.msg_contents("{} leaves to {}".format(
             traversing_object.key,
             self.wilderness.mapprovider.get_location_name(new_coordinates),
@@ -653,6 +654,9 @@ class WildernessExit(DefaultExit):
             self.key,
             exclude=[traversing_object]))
 
+        ##########################################
+        # I don't like the module's implementation
+        #
         # traversing_object.location.msg_contents("{} arrives from {}".format(
         #     traversing_object.key, current_coordinates),
         #     exclude=[traversing_object])
@@ -663,10 +667,11 @@ class WildernessExit(DefaultExit):
     def at_object_delete(self):
         """
         Adds to at_object_delete parent functionality
+
+        A given WildernessExit may lead into a Sector.  When it is deleted,
+        the link to it in the Sector's mapprovider must also be.
         """
         ret = super(WildernessExit, self).at_object_delete()
-        # Some of these exits lead to external rooms
-        # When they are deleted, those coord references must also be
         coords = self.attributes.get("coords_destination")
         if coords:
             try:
@@ -690,6 +695,9 @@ class WildernessMapProvider(object):
 
     This is a simple provider that just creates an infinite large grid area.
     """
+
+    # This represents my ugly organization of the Overworld code. At some point
+    # I will consolidate and refactor Wilderness.py and Overworld.py
     room_typeclass = Loc
     exit_typeclass = WildernessExit
 

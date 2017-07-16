@@ -5,34 +5,45 @@ Overworld
 This module governs everything relating to the Overworld and its basic
 navigation.
 
-Usage:
+Developer Usage:
 
+    Easy batch: @batchcommands make_dev_world
+
+    A la carte:
     @py from world import overworld; overworld.create_overworld()
     @py from world import overworld; overworld.enter_sector(me)
     @py from world import overworld; overworld.destroy_overworld()
 
 Implementation details:
 
-    An Overworld handles the creation of the world by creating a node map
-    of sectors, and then fills in each sector with a map (courtesy of the
-    evennia wilderness contrib from titeuf87).
+    The Overworld (Script) handles the creation of the world by randomly
+    generating a node map of hexagonal sectors. Each Sector has a set of
+    world coordinates on this hex map.
 
-    It also handles recruit and other object movement throughout the overworld.
+    It then runs a 'World Storm' which chooses a cartesian Sector map for each
+    Sector, and then generates cave walls so that each Sector is logically
+    connected to its 'neighbor', while preventing player travel outside of the
+    Overworld map.
 
-    The SectorRoom class has some extended functionality beyond evennia Rooms
+    A World Storm may also be run during active play to 'scramble' the world
+    layout.
 
-    Recruit maps are also managed by the RecruitMapperScript
+    A recruit's personal  maps are managed by the RecruitMapperScript
+
+    Sector map and player movement functionalty are based on the Evennia
+    Wilderness contrib, courtesy of titeuf87.
 
 """
 import random
-import types
 import world.strings
 from evennia import logger, create_script, search_object
 from evennia.utils import evtable
 from typeclasses.scripts import Script
-from typeclasses.rooms import Room
 import wilderness
 
+##################
+# WORLD GENERATION
+##################
 
 def create_overworld():
     """
@@ -64,25 +75,16 @@ def destroy_overworld():
             pass
 
 
-class Overworld(wilderness.WildernessScript):
+class Overworld(Script):
     """
     Creates a world map (nodes of sectors) upon creation, but can also create
     a new one during a world storm.
 
     """
-    def at_start(self):
-        try:
-            super(Overworld, self).at_start()
-        except AttributeError:
-            logger.log_info("OverworldStart: {} has an unset property".format(self.key))
-            pass
+
 
     def at_script_creation(self):
         """
-        Associates each type of map glyph with properties (name, desc, etc)
-        This data will likely be store elsewhere eventually to keep the code
-        clean
-
         This function creates a new world but it doesn't delete the previous
         one which would still be present in the db with all its sectors.
 
@@ -90,9 +92,9 @@ class Overworld(wilderness.WildernessScript):
         self.persistent = True
         # The legend for loc names and descriptions, for each map glyph
         self.db.glyph_legend = world.strings.GLYPH_LEGEND
-        # The number of sectors per world level
+        # The number of sectors per world level {<level>: <num_sectors>}
         # TODO: Implement retrieval from settings.py
-        map_config = {1: 100}
+        map_config = {1: 2}
         # Sector counter to create unique keys from
         self.db.numsectors = 0
         logger.log_info("OverworldInit: PLACEHOLDER: Retrieved world makeup "
@@ -104,16 +106,6 @@ class Overworld(wilderness.WildernessScript):
 
         # Make a world!
         self.world_storm(map_config)
-
-    # @property
-    # def numsectors(self):
-    #     """
-    #     Shortcut property to the map provider.
-    #
-    #     Returns:
-    #         MapProvider: the mapprovider used with this wilderness
-    #     """
-    #     return self.db.numsectors
 
     def create_mapnodes(self, size):
         """
@@ -144,28 +136,25 @@ class Overworld(wilderness.WildernessScript):
 
     def create_sector(self):
         """
-        Creates a sector and its script
-
-        Maybe one day I want this to accept a biome/region/terrain type?
+        Randomly generates a Sector (WildernessScript) and its db.mapprovider
 
         Returns:
-             a SectorMapProvider instance
+             Sector instance
         """
-        # TODO: Algorithm to create a sector
-        # Currently I'm pulling from a hand-made file
+        # TODO: Algorithm to generate a sector, unless I decide to go hand-made
+        # Maybe both? Currently I'm pulling from a hand-made file
         str_file = open('.\\world\\sector_proto.txt')
         # Our sector map
         secmap_str = str_file.read()
         logger.log_info("WorldStorm: PLACEHOLDER: Generated a sector")
 
-        # Create a Sector with a unique key; not sure if needed though
+        # Create a Sector with a unique key. In the future when they have unique
+        # world coords, this will no longer be needed
         script = create_script(Sector, key=str(self.db.numsectors+1))
         # Increase our unique keyname counter
         self.db.numsectors = self.db.numsectors + 1
         mapprovider = SectorMapProvider(secmap_str)
         script.db.mapprovider = mapprovider
-        # Holds references to externally connected Site Rooms (outside Sectors)
-        script.db.externalrooms = {}
         logger.log_info("WorldStorm: PLACEHOLDER: Sector created")
         return script
 
@@ -266,25 +255,35 @@ class Overworld(wilderness.WildernessScript):
             # caveinate this level
             self.caveinate_sectors(dict(self.db.worldmap[level]), neighbormap)
 
+###################
+# WORLD EXPLORATION
+###################
 
 class Sector(wilderness.WildernessScript):
     """
-    Just a name change wrapper for now, but may be used in the future.
+    Mostly a name change wrapper.
     """
     def at_start(self):
+        """
+        Every Loc with an external Site entrance references the Room it connects
+        to. Set the ndb.wildernessscript for all of these Rooms so their exits
+        lead to their resepctive Locs
+        """
         super(Sector, self).at_start()
+        ## Reload the glyph legend every restart so designers can make changes
+        #self.mapprovider.legend = world.strings.GLYPH_LEGEND
         try:
-            # Every Loc with an external Site entrance references the Room
-            # it connects to. Set the wildernessscript ndb for all of them
-            # so their exits lead to their resepctive Loc's
             for coordinates, props in self.mapprovider.externalrooms.items():
-                #room = Room.objects.get(db_key=props[0])
                 room = search_object(props[0])[0]
                 room.ndb.wildernessscript = self
-                logger.log_info("SectorScriptStart: External room {} found in Sector {}".format(room.key, self.key))
+                logger.log_info("SectorScriptStart: External room {} "
+                                "found in Sector {}".format(room.key, self.key))
         except AttributeError:
-            logger.log_info("SectorScriptStart: Sector {} has no externalrooms".format(self.key))
+            logger.log_info("SectorScriptStart: "
+                            "Sector {} has no externalrooms".format(self.key))
             pass
+
+
 class SectorMapProvider(wilderness.WildernessMapProvider):
     """
     Documentation on mapproviders can be found in evennia/contrib/wilderness.py
@@ -294,6 +293,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
     # Coordinates of landmarks associated with their properties
     # Eventually this will be created programmatically
     # Or, if mannually, I'l move this over to strings.py
+    legend = world.strings.GLYPH_LEGEND
     landmarks = {
         (37, 26): {
             'name': 'High Hill',
@@ -320,6 +320,8 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
 
     def __init__(self, map_str):
         """
+        Sets attributes.
+
         Args:
             map_str: This sector's map string
         """
@@ -367,9 +369,6 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         Returns:
             The glyph string
         """
-        # Not saved on the SectorMapProvider because it needs to be loaded fresh
-        # TODO: set self.legend in the script's start method so I don't have to call it everywhere!
-        legend = world.strings.GLYPH_LEGEND
         gcoords = self.glyph_coordinates(coords)
         gx, gy = gcoords
         rows = self.map_str.split("\n")
@@ -389,7 +388,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
             glyph = 'invalid'
             return glyph
         # If the player runs into a glyph not in the legend, make it an error
-        if glyph not in legend:
+        if glyph not in self.legend:
             glyph = '!'
 
         if scan:
@@ -398,19 +397,23 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
                 if coords in externalrooms:
                     # 4th item is the entrance glyph
                     return externalrooms[coords][3]
-            return legend[glyph]["scan"]
+            return self.legend[glyph]["scan"]
         return glyph
 
     def is_valid_coordinates(self, overworld, coords):
         """
-        Uses the map string to check if the coordinates are valid to move to
+        Uses the map string to check if the coordinates are valid to move to.
+        Cave wall, river and out of bounds are currently invalid.
 
         Args:
             overworld: Ref to the Overworld (caller)
             coords: The coordinates to validate
 
         Returns:
-            Not sure yet :) Possibly true, false or a ref to a neighbor
+            Boolean depending on success
+
+            Perhaps in the future it will return a neighbor if we're talking
+            about coordinates which lead to a neighboring sector.
         """
         # TODO: Detect SiteRoom for external travel
         # TODO: Detect edge for cross-sector travel
@@ -433,18 +436,19 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         # If the glyph is an external location, look it up
         # Return the location reference?
 
-        legend = world.strings.GLYPH_LEGEND
         # The characters that define impassable spaces (out of bounds)
-        oob_glyphs = [gkey for gkey in legend if not legend[gkey]["pass"]]
-        # Return True if it's a valid glyph
+        oob_glyphs = [gkey for gkey in self.legend if not self.legend[gkey]["pass"]]
         return glyph not in oob_glyphs
 
     def get_location_name(self, coords):
         """
-        Used if a builder attempts to run commands on this room, I believe
+        Used in many places where a room is called; hooked into Locs
 
         Args:
             coords: coordinates of the loc
+
+        Returns:
+            String: name of the Loc
         """
         legend = world.strings.GLYPH_LEGEND
         glyph = self.find_glyph(coords)
@@ -466,13 +470,18 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
 
     def at_prepare_room(self, coords, caller, loc):
         """
-        Set loc attributes and minimap
+        Create and display the Loc: name, description, minimap, hud, etc
 
         Args:
             coords: Loc coordinates
             caller: ???
             loc: Loc being moved into
         """
+        # TODO: Major refactor of this and descendant functions
+        # It's spaghetti code, but also there is quite a bit more functionality
+        # that will end up here, like wanderers, special sites, encounters,
+        # loot stashes, etc... So I need to do a high-level re-org of it, BUT
+        # NOT until I have a very firm grasp on what features I'll have
         externalrooms = loc.ndb.wildernessscript.mapprovider.externalrooms
         # Set our legend for normal Locs
         legend = world.strings.GLYPH_LEGEND
@@ -481,6 +490,7 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         # Set a normal Loc's properties
         locprops = legend[glyph]
         gcoords = self.glyph_coordinates(coords)
+        logger.log_info("Navigation: Retrieving Loc name and desc")
         # Loc with a special entrance to external Site
         if coords in externalrooms:
             desc_string = '\n|555' + externalrooms[coords][2] + '|n'
@@ -498,18 +508,23 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
                                       border=None)
         loc.db.desc.reformat_column(0, width=5)
         loc.db.desc.reformat_column(1, width=75)
+        logger.log_info("Navigation: Loc name and desc retrieved")
 
         # Build the hud
         # TODO: Account for adjacent sectors
         # Future Release: Account for different sized scans
+        logger.log_info("Navigation: Building Loc HUD")
 
         # 1. Readout
+        #
+        logger.log_info("Navigation: Retrieving Loc readout")
         rstring = "ENVIRONMENT\n"
         rstring += "Loc: {}\n".format(self.get_location_name(coords))
         rstring += "Terrain: {}{}{}\n".format(legend[self.find_glyph(coords)]["color"],
                                               self.find_glyph(coords, scan=True),
                                               '|n')
         rstring += "Sector: {}".format(loc.ndb.wildernessscript.key)
+        logger.log_info("Navigation: Loc readout retrieved")
 
         def scan_glyphs(slf, cds, sgrid):
             # Adds sgrid offsets to gcs (coordinates) and returns minimap glyphs
@@ -529,6 +544,8 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
             return elements
 
         # 2. Scanner
+        #
+        logger.log_info("Navigation: Retrieving Loc scanner")
         x, y = coords
         xchar = str(x)
         xsymbol = ''
@@ -558,16 +575,26 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
                      (-1, 0),  (0, 0),  (1, 0),
                      (-1, -1), (0, -1), (1, -1))
         recruit_glyph = '|555{|550@|555}|n'
-        scan_string = '╓──────║scanY║──────╖\n'
-        scan_string += '║                   ║\n'
-        scan_string += '─────  {} {} {}  ─────\n'.format(*(scan_glyphs(self, coords, scan_grid[0:3])))
-        scan_string += 'scanX  {2} {0} {4}   {1} \n'.format(recruit_glyph, xstring, *(scan_glyphs(self, coords, scan_grid[3:6])))
-        scan_string += '─────  {} {} {}  ─────\n'.format(*(scan_glyphs(self, coords, scan_grid[6:9])))
-        scan_string += '║                   ║\n'
-        scan_string += '╙──────║ %s ║──────╜' % ystring
+
+        line1 = '╓──────║scanY║──────╖\n'
+        line2 = '║                   ║\n'
+        line3 = '─────  {} {} {}  ─────\n'
+        line4 = 'scanX  {2} {0} {4}   {1} \n'
+        line5 = '─────  {} {} {}  ─────\n'
+        line6 = '║                   ║\n'
+        line7 = '╙──────║ %s ║──────╜'
+
+        scan_string = line1
+        scan_string += line2
+        scan_string += line3.format(*(scan_glyphs(self, coords, scan_grid[0:3])))
+        scan_string += line4.format(recruit_glyph, xstring, *(scan_glyphs(self, coords, scan_grid[3:6])))
+        scan_string += line5.format(*(scan_glyphs(self, coords, scan_grid[6:9])))
+        scan_string += line6
+        scan_string += line7 % ystring
+        logger.log_info("Navigation: Loc scanner retrieved")
 
         # 3. Vitals
-        # ne day this will reference real health :)
+        # One day this will reference real health :)
         health_disp = 2
         bauble_disp = 0
         vstring = "VITALS\n"
@@ -579,14 +606,12 @@ class SectorMapProvider(wilderness.WildernessMapProvider):
         loc.db.hud.reformat_column(0, align='c', width=29)
         loc.db.hud.reformat_column(1, width=32)
         loc.db.hud.reformat_column(2, align='r', width=19)
-        logger.log_info("Navigation: Loc desc retrieved")
-        # TODO: use self.map_str to determine minimap string
+        logger.log_info("Navigation: Loc HUD finished")
         # Use EvTable for minimap
-        logger.log_info("Navigation: PLACEHOLDER: Loc minimap retrieved")
-        pass
 
-# Here is the recruit mapping code
-
+#################
+# RECRUIT MAPPING
+#################
 
 class RecruitMapper(Script):
     """
@@ -599,6 +624,6 @@ class RecruitMapper(Script):
     I know that an actual sector map will be made of at least an id and a string
     It might also be made of a dict containing map features and their coords
 
-    Plus each recruit's map of the world
+    Plus each recruit's node map of the world
     """
     pass

@@ -33,3 +33,10 @@ out
 
 # Make a way back in
 @open Enter;en;in = #3
+
+
+
+# I suppose I need a name
+@name me = Codeman;code;man
+# And a suitable description
+@desc me = A black suit, black shoes and gloves; a black hat and black glasses worn over a white mask without any holes -- this is what stands before you.
