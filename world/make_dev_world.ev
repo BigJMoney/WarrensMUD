@@ -8,7 +8,7 @@
 # Describe Limbo state
 @desc here = Your soul tarries...
 Something has gone wrong.
-Your time has not yet come.fa
+Your time has not yet come.
 
 # Dig our way to the Barracks
 @dig/tel Barracks = Return

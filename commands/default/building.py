@@ -11,155 +11,158 @@ from server.conf import settings
 from evennia.utils import create
 
 
-class CmdLocOpen(building.ObjManipCommand):
-    """
-    ...
-
-    Usage:
-      @open ...
-
-    ...
-
-    """
-    key = "@open"
-    locks = "cmd:perm(open) or perm(Builders)"
-    help_category = "Building"
-
-    # a custom member method to chug out exits and do checks
-    def create_exit(self, exit_name, location, destination,
-                                    exit_aliases=None, typeclass=None):
-        """
-        Helper function to avoid code duplication.
-        At this point we know destination is a valid location
-
-        """
-        caller = self.caller
-        string = ""
-        # check if this exit object already exists at the location.
-        # we need to ignore errors (so no automatic feedback)since we
-        # have to know the result of the search to decide what to do.
-        exit_obj = caller.search(exit_name, location=location, quiet=True,
-                                 exact=True)
-        if len(exit_obj) > 1:
-            # give error message and return
-            caller.search(exit_name, location=location, exact=True)
-            return None
-        if exit_obj:
-            exit_obj = exit_obj[0]
-            if not exit_obj.destination:
-                # we are trying to link a non-exit
-                string = "'%s' already exists and is not an exit!\nIf you want " \
-                         "to convert it "
-                string += "to an exit, you must assign an object to the " \
-                          "'destination' property first."
-                caller.msg(string % exit_name)
-                return None
-            # we are re-linking an old exit.
-            old_destination = exit_obj.destination
-            if old_destination:
-                string = "Exit %s already exists." % exit_name
-                if old_destination.id != destination.id:
-                    # reroute the old exit.
-                    exit_obj.destination = destination
-                    if exit_aliases:
-                        [exit_obj.aliases.add(alias) for alias in exit_aliases]
-                    string += " Rerouted its old destination '%s' to '%s' and " \
-                              "changed aliases." % \
-                        (old_destination.name, destination.name)
-                else:
-                    string += " It already points to the correct place."
-
-        else:
-            # exit does not exist before. Create a new one.
-            if not typeclass:
-                typeclass = settings.BASE_EXIT_TYPECLASS
-            exit_obj = create.create_object(typeclass,
-                                            key=exit_name,
-                                            location=location,
-                                            aliases=exit_aliases,
-                                            report_to=caller)
-            if exit_obj:
-                # storing a destination is what makes it an exit!
-                exit_obj.destination = destination
-                string = "" if not exit_aliases else " (aliases: %s)" % (
-                    ", ".join([str(e) for e in exit_aliases]))
-                string = "Created new Exit '%s' from %s to %s%s." % (
-                    exit_name, location.name, destination.name, string)
-            else:
-                string = "Error: Exit '%s' not created." % (exit_name)
-        # emit results
-        caller.msg(string)
-        return exit_obj
-
-    def func(self):
-        """
-        This is where the processing starts.
-        Uses the ObjManipCommand.parser() for pre-processing
-        as well as the self.create_exit() method.
-        """
-        caller = self.caller
-
-        if not self.args or not self.rhs:
-            string = "Usage: @open <new exit>[;alias...][:typeclass]" \
-                     "[,<return exit>[;alias..][:typeclass]]] "
-            string += "= <destination>"
-            caller.msg(string)
-            return
-
-        # We must have a location to open an exit
-        location = caller.location
-        if not location:
-            caller.msg("You cannot create an exit from a None-location.")
-            return
-
-        # obtain needed info from cmdline
-
-        exit_name = self.lhs_objs[0]['name']
-        exit_aliases = self.lhs_objs[0]['aliases']
-        exit_typeclass = self.lhs_objs[0]['option']
-        dest_name = self.rhs
-
-        # first, check so the destination exists.
-        destination = caller.search(dest_name, global_search=True)
-        if not destination:
-            return
-
-        # Create exit
-        ok = self.create_exit(exit_name,
-                              location,
-                              destination,
-                              exit_aliases,
-                              exit_typeclass)
-        if not ok:
-            # an error; the exit was not created, so we quit.
-            return
-        # Create back exit, if any
-        if len(self.lhs_objs) > 1:
-            back_exit_name = self.lhs_objs[1]['name']
-            back_exit_aliases = self.lhs_objs[1]['aliases']
-            back_exit_typeclass = self.lhs_objs[1]['option']
-            self.create_exit(back_exit_name,
-                             destination,
-                             location,
-                             back_exit_aliases,
-                             back_exit_typeclass)
+#############################################
+# Reserving this code for later
+#
+# class CmdLocOpen(building.ObjManipCommand):
+#     """
+#     ...
+#
+#     Usage:
+#       @open ...
+#
+#     ...
+#
+#     """
+#     key = "@open"
+#     locks = "cmd:perm(open) or perm(Builders)"
+#     help_category = "Building"
+#
+#     # a custom member method to chug out exits and do checks
+#     def create_exit(self, exit_name, location, destination,
+#                                     exit_aliases=None, typeclass=None):
+#         """
+#         Helper function to avoid code duplication.
+#         At this point we know destination is a valid location
+#
+#         """
+#         caller = self.caller
+#         string = ""
+#         # check if this exit object already exists at the location.
+#         # we need to ignore errors (so no automatic feedback)since we
+#         # have to know the result of the search to decide what to do.
+#         exit_obj = caller.search(exit_name, location=location, quiet=True,
+#                                  exact=True)
+#         if len(exit_obj) > 1:
+#             # give error message and return
+#             caller.search(exit_name, location=location, exact=True)
+#             return None
+#         if exit_obj:
+#             exit_obj = exit_obj[0]
+#             if not exit_obj.destination:
+#                 # we are trying to link a non-exit
+#                 string = "'%s' already exists and is not an exit!\nIf you want " \
+#                          "to convert it "
+#                 string += "to an exit, you must assign an object to the " \
+#                           "'destination' property first."
+#                 caller.msg(string % exit_name)
+#                 return None
+#             # we are re-linking an old exit.
+#             old_destination = exit_obj.destination
+#             if old_destination:
+#                 string = "Exit %s already exists." % exit_name
+#                 if old_destination.id != destination.id:
+#                     # reroute the old exit.
+#                     exit_obj.destination = destination
+#                     if exit_aliases:
+#                         [exit_obj.aliases.add(alias) for alias in exit_aliases]
+#                     string += " Rerouted its old destination '%s' to '%s' and " \
+#                               "changed aliases." % \
+#                         (old_destination.name, destination.name)
+#                 else:
+#                     string += " It already points to the correct place."
+#
+#         else:
+#             # exit does not exist before. Create a new one.
+#             if not typeclass:
+#                 typeclass = settings.BASE_EXIT_TYPECLASS
+#             exit_obj = create.create_object(typeclass,
+#                                             key=exit_name,
+#                                             location=location,
+#                                             aliases=exit_aliases,
+#                                             report_to=caller)
+#             if exit_obj:
+#                 # storing a destination is what makes it an exit!
+#                 exit_obj.destination = destination
+#                 string = "" if not exit_aliases else " (aliases: %s)" % (
+#                     ", ".join([str(e) for e in exit_aliases]))
+#                 string = "Created new Exit '%s' from %s to %s%s." % (
+#                     exit_name, location.name, destination.name, string)
+#             else:
+#                 string = "Error: Exit '%s' not created." % (exit_name)
+#         # emit results
+#         caller.msg(string)
+#         return exit_obj
+#
+#     def func(self):
+#         """
+#         This is where the processing starts.
+#         Uses the ObjManipCommand.parser() for pre-processing
+#         as well as the self.create_exit() method.
+#         """
+#         caller = self.caller
+#
+#         if not self.args or not self.rhs:
+#             string = "Usage: @open <new exit>[;alias...][:typeclass]" \
+#                      "[,<return exit>[;alias..][:typeclass]]] "
+#             string += "= <destination>"
+#             caller.msg(string)
+#             return
+#
+#         # We must have a location to open an exit
+#         location = caller.location
+#         if not location:
+#             caller.msg("You cannot create an exit from a None-location.")
+#             return
+#
+#         # obtain needed info from cmdline
+#
+#         exit_name = self.lhs_objs[0]['name']
+#         exit_aliases = self.lhs_objs[0]['aliases']
+#         exit_typeclass = self.lhs_objs[0]['option']
+#         dest_name = self.rhs
+#
+#         # first, check so the destination exists.
+#         destination = caller.search(dest_name, global_search=True)
+#         if not destination:
+#             return
+#
+#         # Create exit
+#         ok = self.create_exit(exit_name,
+#                               location,
+#                               destination,
+#                               exit_aliases,
+#                               exit_typeclass)
+#         if not ok:
+#             # an error; the exit was not created, so we quit.
+#             return
+#         # Create back exit, if any
+#         if len(self.lhs_objs) > 1:
+#             back_exit_name = self.lhs_objs[1]['name']
+#             back_exit_aliases = self.lhs_objs[1]['aliases']
+#             back_exit_typeclass = self.lhs_objs[1]['option']
+#             self.create_exit(back_exit_name,
+#                              destination,
+#                              location,
+#                              back_exit_aliases,
+#                              back_exit_typeclass)
 
 
 class CmdLocLink(building.ObjManipCommand):
     """
-    link an exit to a sector loc
+    Link a WildernessExit to a Loc. Should only be used on permanent exits
+    outside of a Sector.
 
     Usage:
       @loclink <level>:<sector>, <loc_x>:<loc_y> = <exit>
 
-    <sector> must be a name. this may chance to a tuple (worldcoords) in the
-    future
-    <loc> must be a coordinates tuple in the form (x, y). Be warned that it's
-    possible to provide invalid coordinates which will cause the exit to
-    not function.
+    <sector> must be a name. This may change to a tuple (worldcoords) in the
+    future.
+    <loc_x> and <loc_y> must be integers that represent valid coordinates in a
+    Sector.
 
-    Note that if an llinked exit leaves its current room, it will need to be
-    llinked again to operate.
+    *HEY, LISTEN*! If an llinked exit leaves its current room, it will need to
+    be llinked again.
     """
     key = "@loclink"
     aliases = ["@llink"]
@@ -172,15 +175,19 @@ class CmdLocLink(building.ObjManipCommand):
         """
         caller = self.caller
         if not self.args or not self.rhs:
-            string = "Usage: @loclink <level>:<sector>, <loc_x>:<loc_y> = <exit>"
-            string += ""
-            caller.msg(string)
+            caller.msg("Usage: @loclink <level>:<sector>, <loc_x>:<loc_y> = <exit>")
             return
 
-        level = int(self.lhs_objs[0]['name'])
-        secnum = self.lhs_objs[0]['option']
-        loc_x = int(self.lhs_objs[1]['name'])
-        loc_y = int(self.lhs_objs[1]['option'])
+        VAL_ERR_MSG = "Arguments: <level>, <sec_x> and <sec_y> must " \
+                      "be integers."
+
+        try:
+            level = int(self.lhs_objs[0]['name'])
+            loc_x = int(self.lhs_objs[1]['name'])
+            loc_y = int(self.lhs_objs[1]['option'])
+        except ValueError:
+            caller.msg(VAL_ERR_MSG); return
+        sec_id = self.lhs_objs[0]['option']
         exit_name = self.rhs
         coords = loc_x, loc_y
 
@@ -189,29 +196,29 @@ class CmdLocLink(building.ObjManipCommand):
                       'exist in the world, and must not lead to impassable ' \
                       'terrain. Whew!'
 
-        # All parameters mandatory
-        if not level or not secnum or loc_x is None or loc_y is None\
+        # All parameters are mandatory
+        if not level or not sec_id or loc_x is None or loc_y is None\
                 or not exit_name:
             string = "Usage: @loclink <level>:<sector>, <loc_x>:<loc_y> = <exit>"
             string += ""
-            caller.msg(string)
-            return
-
-        worldmap = evennia.search_script('overworld')[0].db.worldmap
+            caller.msg(string); return
         # Level must be in the world
+        worldmap = evennia.search_script('overworld')[0].db.worldmap
         if level not in worldmap:
             caller.msg(SEC_ERR_MSG)
             return
-        # secnum must refer to a sector that is on this particular level
-        # sec = evennia.search_script(secnum)[0]
-        sec = world.overworld.Sector.objects.get(db_key=secnum)
+        # sec_id must refer to a sector that is on the specified level
+        try:
+            sec = world.overworld.Sector.objects.get(db_key=sec_id)
+        except world.overworld.Sector.DoesNotExist:
+            caller.msg(SEC_ERR_MSG); return
         if not sec or sec not in list(worldmap[level].values()):
-            caller.msg(SEC_ERR_MSG)
-            return
-        # First search locally
+            caller.msg(SEC_ERR_MSG); return
+        # locate the exit
+        # first, search locally
         exit = caller.search(exit_name)
         if not exit:
-            # Then search globally
+            # then, search globally
             try:
                 exit = world.wilderness.WildernessExit.objects.get(db_key=exit_name)
             except world.wilderness.WildernessExit.MultipleObjectsReturned:
@@ -229,7 +236,6 @@ class CmdLocLink(building.ObjManipCommand):
                 caller.msg(string)
                 return
         # exit_name must refer to one in the world
-        # TODO: Test ambiguity and handle it, maybe by being in same room?
         if not exit or not exit.location:
             caller.msg(SEC_ERR_MSG)
             return
@@ -237,15 +243,13 @@ class CmdLocLink(building.ObjManipCommand):
         if not sec.is_valid_coordinates(coords):
             caller.msg(SEC_ERR_MSG)
             return
-
-        # Set up the site entrance in the sector dict
-        # If the Sector finds a room already associated with this Loc
+        # A Loc can't be linked to multiple WildernessExits
         if coords in sec.mapprovider.externalrooms:
             caller.msg('Loc {} already associated with exit {}. Destroy ' \
-                      'that exit before proceeding'
+                       'that exit before proceeding'
                        ''.format(coords, sec.mapprovider.externalrooms[coords][4]))
             return
-        # Final check to see if this is a 're-link', so we erase the old link
+        # Case: 'Re-link"; we want to eliminate the old link
         relink = False
         oldcoords = exit.attributes.get("coords_destination")
         if oldcoords:
@@ -254,29 +258,29 @@ class CmdLocLink(building.ObjManipCommand):
                 mapprovider = sec.mapprovider
                 del mapprovider.externalrooms[oldcoords]
                 sec.db.mapprovider = mapprovider
-            # I don't remember why I have these...
-            except AttributeError:
-                logger.log_err("Cmd-Llink: ERROR: No externalrooms att found on "
-                               "Sector {}".format(sec.key))
+            # This is here for safety but I don't believe it should occur
             except:
                 logger.log_err("Cmd-Llink: ERROR: Failed to delete coords {}"
                                "from {}.externalrooms".format(oldcoords, sec.key))
             else:
                 relink = True
 
+        # Add the link info to the mapprovider externalrooms dict
         # ! Don't change the order of these !
-        sec.mapprovider.externalrooms[coords] = \
+        mapprovider = sec.mapprovider
+        mapprovider.externalrooms[coords] = \
             [exit.location.dbref]
-        sec.mapprovider.externalrooms[coords].append(
+        mapprovider.externalrooms[coords].append(
             world.strings.DEF_SITEENTRANCE_NAME)
-        sec.mapprovider.externalrooms[coords].append(
+        mapprovider.externalrooms[coords].append(
             world.strings.DEF_SITEENTRANCE_DESC)
-        sec.mapprovider.externalrooms[coords].append(
+        mapprovider.externalrooms[coords].append(
             world.strings.DEF_SITEENTRANCE_GLYPH)
-        sec.mapprovider.externalrooms[coords].append(
+        mapprovider.externalrooms[coords].append(
             exit.dbref)
-        sec.db.mapprovider = sec.mapprovider  # Make the attribute persistent
+        sec.db.mapprovider = mapprovider
         exit.location.ndb.wildernessscript = sec
+        # Add the Loc coords link to the exit
         exit.db.coords_destination = coords
         string = 'Exit {} linked with coordinates {} in Sector {} on level {}.' \
                  ''.format(exit, coords, sec, level)
@@ -284,30 +288,31 @@ class CmdLocLink(building.ObjManipCommand):
             string +='\nRemember to delete the old return exit if there is one.'
         caller.msg(string)
 
-        # TODO: Add the remove switch that searches for this room/exit in the previous coords sector in order to remove it
-
-        # TODO: change the at_start code for sectors to iterate through db.externalrooms and set ndb.wilderness for each one
-        # TODO: remove room and coords reference from sec.db.externalrooms when the linked exit is deleted
-
 
 class CmdLocDesc(building.ObjManipCommand):
     """
-    describe aa Loc that has an external Site entrance
+    Set the description of a Loc that has an external Site entrance. The Loc
+    must already be linked from an exit in a Site (see help @llink).
 
     Usage:
       @ldesc <level>:<sector>, <loc_x>:<loc_y> = <description>
 
     Switches:
-      ???? - ???
+      edit - [ FUTURE RELEASE: edit mode ]
 
-    Sets the "desc" attribute on a Loc with the given coordinates. The Loc
-    must already be linked from an exit in a Site (see help @llink).
+    <sector> must be a name. This may change to a tuple (worldcoords) in the
+    future
+    <loc_x> and <loc_y> must be integers that represent valid coordinates in a
+    Sector.
     """
     key = "@locdesc"
     aliases = ["@locdescribe", "@ldescribe", "@ldesc"]
     locks = "cmd:perm(desc) or perm(Builders)"
     help_category = "Building"
 
+    #########################
+    # Reserved code
+    #
     # def edit_handler(self):
     #     if self.rhs:
     #         self.msg("|rYou may specify a value, or use the edit switch, "
@@ -319,7 +324,7 @@ class CmdLocDesc(building.ObjManipCommand):
     #         obj = self.caller.location or self.msg("|rYou can't describe oblivion.|n")
     #     if not obj:
     #         return
-#
+    #
     #     self.caller.db.evmenu_target = obj
     #     # launch the editor
     #     EvEditor(self.caller, loadfunc=_desc_load, savefunc=_desc_save,
@@ -327,8 +332,7 @@ class CmdLocDesc(building.ObjManipCommand):
     #     return
 
     def func(self):
-        "Define command"
-
+        "Runs command"
         caller = self.caller
         if not self.args or not self.rhs:
             string = "Usage: @locdesc <level>:<sector>, <loc_x>:<loc_y> = " \
@@ -337,14 +341,24 @@ class CmdLocDesc(building.ObjManipCommand):
             caller.msg(string)
             return
 
+        ############################
+        # Reserved Code
+        #
         #if 'edit' in self.switches:
         #    self.edit_handler()
         #    return
 
-        level = int(self.lhs_objs[0]['name'])
-        secnum = self.lhs_objs[0]['option']
-        loc_x = int(self.lhs_objs[1]['name'])
-        loc_y = int(self.lhs_objs[1]['option'])
+        VAL_ERR_MSG = "Arguments: <level>, <sec_x> and <sec_y> must " \
+                      "be integers."
+
+        try:
+            level = int(self.lhs_objs[0]['name'])
+            loc_x = int(self.lhs_objs[1]['name'])
+            loc_y = int(self.lhs_objs[1]['option'])
+        except ValueError:
+            caller.msg(VAL_ERR_MSG);
+            return
+        sec_id = self.lhs_objs[0]['option']
         desc = self.rhs
         coords = loc_x, loc_y
 
@@ -355,7 +369,7 @@ class CmdLocDesc(building.ObjManipCommand):
                       'external Site via an exit (see help @llink).'
 
         # All parameters mandatory
-        if not level or not secnum or loc_x is None or loc_y is None \
+        if not level or not sec_id or loc_x is None or loc_y is None \
                 or not desc:
             string = "Usage: @locdesc <level>:<sector>, <loc_x>:<loc_y> = " \
                      "<description>"
@@ -367,25 +381,31 @@ class CmdLocDesc(building.ObjManipCommand):
         if level not in worldmap:
             caller.msg(SEC_ERR_MSG)
             return
-        # secnum must refer to a sector that is on this particular level
-        # sec = evennia.search_script(secnum)[0]
-        sec = world.overworld.Sector.objects.get(db_key=secnum)
+        # sec_id must refer to a sector that is on the specified level
+        try:
+            sec = world.overworld.Sector.objects.get(db_key=sec_id)
+        except world.overworld.Sector.DoesNotExist:
+            caller.msg(SEC_ERR_MSG);
+            return
         if not sec or sec not in list(worldmap[level].values()):
-            caller.msg(SEC_ERR_MSG)
+            caller.msg(SEC_ERR_MSG);
             return
         # Check the coordinates are valid in this sector
         if not sec.is_valid_coordinates(coords):
             caller.msg(SEC_ERR_MSG)
             return
-        #Coordinates must refer to a loc linked to externalrooms
+        # Coordinates must refer to a loc linked to externalrooms
         if coords not in sec.mapprovider.externalrooms:
             caller.msg(LOC_ERR_MSG)
             return
+        # Find and edit the Loc
         props = sec.mapprovider.externalrooms[coords]
+        # Only allow someone with Site edit access to do this, however
         room = search_object(props[0])[0]
         if room.access(caller, "edit"):
-            sec.mapprovider.externalrooms[coords][2] = desc
-            sec.db.mapprovider = sec.mapprovider  # Make the attribute persistent
+            mapprovider = sec.mapprovider
+            mapprovider.externalrooms[coords][2] = desc
+            sec.db.mapprovider = mapprovider
             caller.msg(
                 "The entrance description was set on Loc {}.".format(coords))
         else:
@@ -418,10 +438,17 @@ class CmdLocName(building.ObjManipCommand):
             caller.msg(string)
             return
 
-        level = int(self.lhs_objs[0]['name'])
-        secnum = self.lhs_objs[0]['option']
-        loc_x = int(self.lhs_objs[1]['name'])
-        loc_y = int(self.lhs_objs[1]['option'])
+        VAL_ERR_MSG = "Arguments: <level>, <sec_x> and <sec_y> must " \
+                      "be integers."
+
+        try:
+            level = int(self.lhs_objs[0]['name'])
+            loc_x = int(self.lhs_objs[1]['name'])
+            loc_y = int(self.lhs_objs[1]['option'])
+        except ValueError:
+            caller.msg(VAL_ERR_MSG);
+            return
+        sec_id = self.lhs_objs[0]['option']
         name = self.rhs
         coords = loc_x, loc_y
 
@@ -432,7 +459,7 @@ class CmdLocName(building.ObjManipCommand):
                       'external Site via an exit (see help @llink).'
 
         # All parameters mandatory
-        if not level or not secnum or loc_x is None or loc_y is None \
+        if not level or not sec_id or loc_x is None or loc_y is None \
                 or not name:
             string = "Usage: @locname <level>:<sector>, <loc_x>:<loc_y> = " \
                      "<name>"
@@ -444,25 +471,31 @@ class CmdLocName(building.ObjManipCommand):
         if level not in worldmap:
             caller.msg(SEC_ERR_MSG)
             return
-        # secnum must refer to a sector that is on this particular level
-        # sec = evennia.search_script(secnum)[0]
-        sec = world.overworld.Sector.objects.get(db_key=secnum)
+        # sec_id must refer to a sector that is on the specified level
+        try:
+            sec = world.overworld.Sector.objects.get(db_key=sec_id)
+        except world.overworld.Sector.DoesNotExist:
+            caller.msg(SEC_ERR_MSG);
+            return
         if not sec or sec not in list(worldmap[level].values()):
-            caller.msg(SEC_ERR_MSG)
+            caller.msg(SEC_ERR_MSG);
             return
         # Check the coordinates are valid in this sector
         if not sec.is_valid_coordinates(coords):
             caller.msg(SEC_ERR_MSG)
             return
-        #Coordinates must refer to a loc linked to externalrooms
+        # Coordinates must refer to a loc linked to externalrooms
         if coords not in sec.mapprovider.externalrooms:
             caller.msg(LOC_ERR_MSG)
             return
+        # Find and edit the Loc
         props = sec.mapprovider.externalrooms[coords]
+        # Only allow someone with Site edit access to do this, however
         room = search_object(props[0])[0]
         if room.access(caller, "edit"):
-            sec.mapprovider.externalrooms[coords][1] = name
-            sec.db.mapprovider = sec.mapprovider  # Make the attribute persistent
+            mapprovider = sec.mapprovider
+            mapprovider.externalrooms[coords][1] = name
+            sec.db.mapprovider = mapprovider
             caller.msg(
                 "The entrance name was set on Loc {}.".format(coords))
         else:
